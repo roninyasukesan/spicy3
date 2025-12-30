@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Button } from "@/components/ui/button";
 import { CheckCircle, Crown, Diamond, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 
 const modelPlans = [
   {
@@ -120,12 +121,14 @@ export function CheckoutPlans() {
                 </ul>
               </CardContent>
               <CardFooter className="p-6">
-                <Button
-                  size="lg"
-                  className="w-full text-lg font-semibold bg-primary-600 hover:bg-primary-700"
-                >
-                  {plan.name === "Plano Básico" ? "Começar Grátis" : "Assinar Agora"}
-                </Button>
+                <Link href="/cadastro" className="w-full">
+                  <Button
+                    size="lg"
+                    className="w-full text-lg font-semibold bg-primary-600 hover:bg-primary-700"
+                  >
+                    {plan.name === "Plano Básico" ? "Começar Grátis" : "Assinar Agora"}
+                  </Button>
+                </Link>
               </CardFooter>
             </Card>
           ))}
@@ -134,3 +137,4 @@ export function CheckoutPlans() {
     </section>
   );
 }
+

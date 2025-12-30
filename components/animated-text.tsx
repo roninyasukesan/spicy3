@@ -1,3 +1,5 @@
+"use client";
+
 import React from 'react';
 import { motion } from 'framer-motion';
 
@@ -18,10 +20,11 @@ export function AnimatedText({
     <motion.div
       initial={{ opacity: 0, y: yOffset }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.5 }}
+      viewport={{ once: true, margin: "-50px" }}
       transition={{ delay, duration, ease: 'easeOut' }}
     >
       {children}
     </motion.div>
   );
 }
+

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Button } from "@/components/ui/button";
 import { CheckCircle, Crown, Gift, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 
 const clientPlans = [
   {
@@ -102,12 +103,14 @@ export function CheckoutPlansClients() {
                 </ul>
               </CardContent>
               <CardFooter className="p-6">
-                <Button
-                  size="lg"
-                  className="w-full text-lg font-semibold bg-red-600 hover:bg-red-700 text-white"
-                >
-                  {plan.name === "Plano Free" ? "Começar Grátis" : "Assinar Agora"}
-                </Button>
+                <Link href="/cadastro" className="w-full">
+                  <Button
+                    size="lg"
+                    className="w-full text-lg font-semibold bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    {plan.name === "Plano Free" ? "Começar Grátis" : "Assinar Agora"}
+                  </Button>
+                </Link>
               </CardFooter>
             </Card>
           ))}
@@ -116,3 +119,4 @@ export function CheckoutPlansClients() {
     </section>
   );
 }
+

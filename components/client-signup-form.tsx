@@ -7,6 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, User, Mail, Lock, Phone, MapPin } from "lucide-react"
 import { AnimatedText } from "@/components/animated-text";
+import { supabase } from "@/lib/supabase"
+import { useToast } from "@/components/ui/use-toast"
+import { useRouter } from "next/navigation"
 
 interface ClientSignupFormProps {
   onBack: () => void
@@ -22,11 +25,74 @@ export function ClientSignupForm({ onBack }: ClientSignupFormProps) {
     city: "",
     age: "",
   })
+  const [isLoading, setIsLoading] = useState(false)
+  const { toast } = useToast()
+  const router = useRouter()
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Handle form submission
-    console.log("Client signup:", formData)
+    
+    if (formData.password !== formData.confirmPassword) {
+      toast({
+        title: "Erro no cadastro",
+        description: "As senhas não coincidem.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsLoading(true)
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.name,
+            phone: formData.phone,
+            city: formData.city,
+            age: formData.age,
+            role: 'client'
+          }
+        }
+      })
+
+      if (error) {
+        throw error
+      }
+
+      if (data?.session) {
+        // Clientes não possuem perfil público; apenas concluem o cadastro.
+        // Em futuro fluxo, poderemos criar tabela específica para clientes.
+        toast({
+          title: "Conta criada",
+          description: "Login efetuado. Você pode navegar como cliente.",
+        })
+      } else {
+        toast({
+          title: "Confirmação necessária",
+          description: "Verifique seu email e faça login para finalizar.",
+        })
+      }
+
+      toast({
+        title: "Cadastro realizado com sucesso!",
+        description: "Verifique seu email para confirmar o cadastro.",
+      })
+      
+      // Redirect or go back to login
+      onBack()
+
+    } catch (error: any) {
+      toast({
+        title: "Erro no cadastro",
+        description: error.message || "Ocorreu um erro ao criar sua conta.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -182,8 +248,8 @@ export function ClientSignupForm({ onBack }: ClientSignupFormProps) {
                 </AnimatedText>
 
                 <AnimatedText delay={0.9}>
-                  <Button type="submit" className="w-full bg-primary-600 hover:bg-primary-700">
-                    Criar Conta
+                  <Button type="submit" className="w-full bg-primary-600 hover:bg-primary-700" disabled={isLoading}>
+                    {isLoading ? "Criando conta..." : "Criar Conta"}
                   </Button>
                 </AnimatedText>
               </form>

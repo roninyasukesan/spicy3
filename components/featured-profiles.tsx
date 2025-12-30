@@ -102,7 +102,7 @@ export function FeaturedProfiles() {
           <Button
             size="lg"
             variant="outline"
-            className="border-primary-500 text-primary-500 hover:bg-primary-500 hover:text-white bg-transparent"
+            className="w-full sm:w-auto border-primary-500 text-primary-500 hover:bg-primary-500 hover:text-white bg-transparent"
           >
             Ver Todos os Perfis
           </Button>

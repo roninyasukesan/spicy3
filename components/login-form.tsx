@@ -11,20 +11,62 @@ import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { SignupOptions } from "@/components/signup-options";
 import Image from "next/image";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase";
+import { useToast } from "@/hooks/use-toast";
+import { useRouter } from "next/navigation";
 
 export function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
+  const router = useRouter();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle login logic here
-    console.log("Logging in with:", { email, password });
+    setLoading(true);
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "Login realizado com sucesso!",
+        description: "Bem-vindo de volta.",
+      });
+
+      router.push("/");
+      router.refresh();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao entrar",
+        description: error.message || "Verifique suas credenciais e tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleGoogleLogin = () => {
-    // Implementar login com Google
-    console.log("Login com Google");
+  const handleGoogleLogin = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+      });
+      if (error) throw error;
+    } catch (error: any) {
+      toast({
+        title: "Erro no login com Google",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -65,6 +107,7 @@ export function LoginForm() {
                 className="pl-10 bg-dark-800 border-gray-700 text-white"
                 placeholder="seu@email.com"
                 required
+                disabled={loading}
               />
             </div>
           </div>
@@ -86,12 +129,13 @@ export function LoginForm() {
                 className="pl-10 bg-dark-800 border-gray-700 text-white"
                 placeholder="••••••••"
                 required
+                disabled={loading}
               />
             </div>
           </div>
 
-          <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-white">
-            Entrar
+          <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-white" disabled={loading}>
+            {loading ? "Entrando..." : "Entrar"}
           </Button>
         </form>
 
@@ -105,3 +149,4 @@ export function LoginForm() {
     </Card>
   );
 }
+

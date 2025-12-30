@@ -3,7 +3,7 @@ import { Search, Shield, Star } from "lucide-react"
 
 export function Hero() {
   return (
-    <section className="relative min-h-[80vh] flex items-center justify-center overflow-hidden">
+    <section className="relative min-h-[70vh] md:min-h-[80vh] flex items-center justify-center overflow-hidden">
       {/* Background with overlay */}
       <div className="absolute inset-0 bg-gradient-to-br from-dark-900 via-dark-950 to-black">
         <div className="absolute inset-0 bg-[url('/placeholder.svg?height=800&width=1200')] bg-cover bg-center opacity-10"></div>
@@ -42,14 +42,14 @@ export function Hero() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button
               size="lg"
-              className="bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-lg px-8 py-3"
+              className="w-full sm:w-auto bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-lg px-8 py-3"
             >
               Explorar Perfis de Luxo
             </Button>
             <Button
               size="lg"
               variant="outline"
-              className="border-gold-500 text-gold-500 hover:bg-gold-500 hover:text-black text-lg px-8 py-3 bg-transparent"
+              className="w-full sm:w-auto border-gold-500 text-gold-500 hover:bg-gold-500 hover:text-black text-lg px-8 py-3 bg-transparent"
             >
               Seja uma Modelo de Sucesso
             </Button>

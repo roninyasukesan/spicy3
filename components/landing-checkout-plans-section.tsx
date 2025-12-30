@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AnimatedText } from "@/components/animated-text";
+import Link from "next/link";
 
 const clientPlans = [
   {
@@ -81,17 +82,19 @@ export function LandingCheckoutPlansSection() {
                   </ul>
                 </CardContent>
                 <CardFooter className="p-6">
-                  <Button
-                    size="lg"
-                    className={cn(
-                      "w-full text-lg font-semibold",
-                      plan.theme === "basic"
-                        ? "bg-gray-700 hover:bg-gray-600 text-gray-300"
-                        : "bg-red-600 hover:bg-red-700 text-white"
-                    )}
-                  >
-                    {plan.name === "Plano Free" ? "Começar Grátis" : "Assinar Agora"}
-                  </Button>
+                  <Link href={plan.name === "Plano Free" ? "/cadastro" : "/vip"} className="w-full">
+                    <Button
+                      size="lg"
+                      className={cn(
+                        "w-full text-lg font-semibold",
+                        plan.theme === "basic"
+                          ? "bg-gray-700 hover:bg-gray-600 text-gray-300"
+                          : "bg-red-600 hover:bg-red-700 text-white"
+                      )}
+                    >
+                      {plan.name === "Plano Free" ? "Começar Grátis" : "Assinar Agora"}
+                    </Button>
+                  </Link>
                 </CardFooter>
               </Card>
             </AnimatedText>
@@ -101,3 +104,4 @@ export function LandingCheckoutPlansSection() {
     </section>
   );
 }
+

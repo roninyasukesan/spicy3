@@ -4,13 +4,14 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { AnimatedText } from "@/components/animated-text";
+import Link from "next/link";
 
 export function LandingHeroSection() {
   return (
-    <section className="relative h-[80vh] flex items-center justify-center bg-black text-white overflow-hidden">
+    <section className="relative min-h-[70vh] md:min-h-[80vh] flex items-center justify-center bg-black text-white overflow-hidden">
       <div
         className="absolute inset-0 bg-cover bg-center opacity-40"
-        style={{ backgroundImage: "url('https://source.unsplash.com/random/1920x1080/?sensual,luxury,model')" }}
+        style={{ backgroundImage: "url('/placeholder.jpg')" }}
       ></div>
       <div className="absolute inset-0 bg-gradient-to-t from-dark-950 via-dark-950/80 to-transparent"></div>
 
@@ -26,13 +27,15 @@ export function LandingHeroSection() {
           </p>
         </AnimatedText>
         <AnimatedText delay={0.4}>
-          <Button
-            size="lg"
-            className="bg-red-600 hover:bg-red-700 text-white text-lg font-semibold px-8 py-3 rounded-full shadow-lg transition-all duration-300 transform hover:scale-105"
-          >
-            Ver Modelos Agora
-            <ArrowRight className="ml-2 h-5 w-5" />
-          </Button>
+          <Link href="/busca">
+            <Button
+              size="lg"
+              className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white text-lg font-semibold px-8 py-3 rounded-full shadow-lg transition-all duration-300 transform hover:scale-105"
+            >
+              Ver Modelos Agora
+              <ArrowRight className="ml-2 h-5 w-5" />
+            </Button>
+          </Link>
         </AnimatedText>
       </div>
     </section>

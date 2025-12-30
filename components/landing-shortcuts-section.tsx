@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Search, Crown, UserPlus } from "lucide-react";
 import { AnimatedText } from "@/components/animated-text";
+import Link from "next/link";
 
 export function LandingShortcutsSection() {
   return (
@@ -23,9 +24,11 @@ export function LandingShortcutsSection() {
                 <p className="text-gray-400 mb-6">Encontre a modelo ideal para seus desejos.</p>
               </AnimatedText>
               <AnimatedText delay={0.3}>
-                <Button className="bg-red-600 hover:bg-red-700 text-white font-semibold">
-                  Buscar Agora
-                </Button>
+                <Link href="/busca">
+                  <Button className="bg-red-600 hover:bg-red-700 text-white font-semibold w-full sm:w-auto">
+                    Buscar Agora
+                  </Button>
+                </Link>
               </AnimatedText>
             </CardContent>
           </Card>
@@ -43,9 +46,11 @@ export function LandingShortcutsSection() {
                 <p className="text-gray-400 mb-6">Desbloqueie recursos exclusivos e acesso ilimitado.</p>
               </AnimatedText>
               <AnimatedText delay={0.4}>
-                <Button className="bg-red-600 hover:bg-red-700 text-white font-semibold">
-                  Planos VIP
-                </Button>
+                <Link href="/vip">
+                  <Button className="bg-red-600 hover:bg-red-700 text-white font-semibold w-full sm:w-auto">
+                    Planos VIP
+                  </Button>
+                </Link>
               </AnimatedText>
             </CardContent>
           </Card>
@@ -63,9 +68,11 @@ export function LandingShortcutsSection() {
                 <p className="text-gray-400 mb-6">Seja uma modelo de luxo e monetize seu talento.</p>
               </AnimatedText>
               <AnimatedText delay={0.5}>
-                <Button className="bg-red-600 hover:bg-red-700 text-white font-semibold">
-                  Quero Anunciar
-                </Button>
+                <Link href="/cadastro">
+                  <Button className="bg-red-600 hover:bg-red-700 text-white font-semibold w-full sm:w-auto">
+                    Quero Anunciar
+                  </Button>
+                </Link>
               </AnimatedText>
             </CardContent>
           </Card>

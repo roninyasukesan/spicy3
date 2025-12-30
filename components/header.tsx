@@ -4,7 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Flame, Menu, User, X } from "lucide-react"
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "@/components/ui/dialog"
 import { LoginForm } from "@/components/login-form"
 
 export function Header() {
@@ -42,7 +42,10 @@ export function Header() {
                   Entrar
                 </Button>
               </DialogTrigger>
-              <DialogContent className="bg-dark-900 border-gray-800 p-0 max-w-sm rounded-lg">
+              <DialogContent className="bg-dark-900 border-gray-800 p-0 max-w-sm rounded-lg" aria-describedby={undefined}>
+                <div className="sr-only">
+                  <DialogTitle>Login</DialogTitle>
+                </div>
                 <LoginForm />
               </DialogContent>
             </Dialog>
@@ -81,7 +84,10 @@ export function Header() {
                       Entrar
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="bg-dark-900 border-gray-800 p-0 max-w-sm rounded-lg">
+                  <DialogContent className="bg-dark-900 border-gray-800 p-0 max-w-sm rounded-lg" aria-describedby={undefined}>
+                    <div className="sr-only">
+                      <DialogTitle>Login</DialogTitle>
+                    </div>
                     <LoginForm />
                   </DialogContent>
                 </Dialog>
