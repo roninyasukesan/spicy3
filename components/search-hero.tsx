@@ -6,14 +6,20 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, MapPin } from "lucide-react";
+import Image from "next/image";
 
 export function SearchHero() {
   return (
     <section className="relative h-[70vh] flex items-center justify-center bg-black">
-      <div
-        className="absolute inset-0 bg-cover bg-center opacity-30"
-        style={{ backgroundImage: "url('/placeholder.svg?height=1080&width=1920')" }}
-      ></div>
+      <div className="absolute inset-0 opacity-30">
+        <Image
+          src="/placeholder.svg?height=1080&width=1920"
+          alt="Search Hero Background"
+          fill
+          className="object-cover object-center"
+          priority
+        />
+      </div>
       <div className="absolute inset-0 bg-gradient-to-t from-dark-950 via-dark-950/80 to-transparent"></div>
 
       <div className="relative z-10 container mx-auto px-4 text-center">

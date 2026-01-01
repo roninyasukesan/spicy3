@@ -17,6 +17,7 @@ import {
   Camera,
   Phone,
 } from "lucide-react"
+import Image from "next/image"
 
 interface ProfileDetailsProps {
   profileId: string
@@ -78,10 +79,17 @@ export function ProfileDetails({ profileId }: ProfileDetailsProps) {
               <div className="relative aspect-[4/5] mb-4">
                 {isLoggedIn ? (
                   <div
-                    className="w-full h-full bg-cover bg-center rounded-t-lg cursor-pointer"
-                    style={{ backgroundImage: `url(${profile.images[currentImageIndex]})` }}
+                    className="w-full h-full rounded-t-lg cursor-pointer overflow-hidden relative"
                     onClick={() => handleImageClick(currentImageIndex)}
-                  />
+                  >
+                    <Image
+                      src={profile.images[currentImageIndex]}
+                      alt={profile.name}
+                      fill
+                      className="object-cover"
+                      priority
+                    />
+                  </div>
                 ) : (
                   <div
                     className="w-full h-full bg-gradient-to-br from-gray-800 to-gray-900 blur-content flex items-center justify-center rounded-t-lg cursor-pointer"
@@ -122,13 +130,19 @@ export function ProfileDetails({ profileId }: ProfileDetailsProps) {
                 {profile.images.map((image, index) => (
                   <div
                     key={index}
-                    className={`aspect-square cursor-pointer rounded-lg overflow-hidden border-2 ${
+                    className={`relative aspect-square cursor-pointer rounded-lg overflow-hidden border-2 ${
                       currentImageIndex === index ? "border-primary-500" : "border-transparent"
                     }`}
                     onClick={() => handleImageClick(index)}
                   >
                     {isLoggedIn ? (
-                      <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: `url(${image})` }} />
+                      <Image
+                        src={image}
+                        alt={`${profile.name} ${index + 1}`}
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 768px) 25vw, 15vw"
+                      />
                     ) : (
                       <div className="w-full h-full bg-gray-700 blur-content flex items-center justify-center">
                         <Camera className="h-4 w-4 text-gray-500" />

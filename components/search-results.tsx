@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { MapPin, Star, Eye, Heart, Shield, MessageCircle } from "lucide-react"
 import { AnimatedText } from "@/components/animated-text";
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { ModelDetailsModal, Model } from "@/components/model-details-modal";
 import { SearchFiltersState } from "@/app/busca/page";
 import { PhysicalCharacteristics } from "@/lib/physical-characteristics";
@@ -215,13 +216,17 @@ export function SearchResults({ filters }: SearchResultsProps) {
                 <div className="flex flex-col sm:flex-row">
                   {/* Image */}
                   <div
-                    className="relative w-full h-64 sm:w-48 sm:h-auto flex-shrink-0 cursor-pointer"
+                    className="relative w-full h-64 sm:w-48 sm:h-auto flex-shrink-0 cursor-pointer overflow-hidden"
                     onClick={() => handleOpenModal(profile)}
                   >
-                    <div className="w-full h-full bg-gradient-to-br from-gray-800 to-gray-900 blur-content flex items-center justify-center sm:rounded-l-lg"
-                         style={{ backgroundImage: `url(${profile.imageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
-                      <div className="absolute inset-0 bg-black/30 hover:bg-black/10 transition-colors"></div>
-                    </div>
+                    <Image
+                      src={profile.imageUrl}
+                      alt={profile.name}
+                      fill
+                      className="object-cover"
+                      sizes="(max-width: 640px) 100vw, 192px"
+                    />
+                    <div className="absolute inset-0 bg-black/30 hover:bg-black/10 transition-colors"></div>
 
                     {/* Status Badges */}
                     <div className="absolute top-3 left-3 flex flex-col gap-1">

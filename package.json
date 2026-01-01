@@ -6,7 +6,10 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "next lint",
-    "start": "next start"
+    "start": "next start",
+    "git:status": "node scripts/git-status.js",
+    "git:pull": "node scripts/git-pull.js",
+    "git:push": "node scripts/git-push.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

@@ -16,15 +16,11 @@ export function AnimatedText({
   duration = 0.8,
   yOffset = 20,
 }: AnimatedTextProps) {
+  // Animation temporarily disabled to fix visibility issues
   return (
-    <motion.div
-      initial={{ opacity: 0, y: yOffset }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-50px" }}
-      transition={{ delay, duration, ease: 'easeOut' }}
-    >
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700" style={{ animationDelay: `${delay}s` }}>
       {children}
-    </motion.div>
+    </div>
   );
 }
 

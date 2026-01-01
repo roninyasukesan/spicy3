@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Header } from "@/components/header"
 import { SearchFilters } from "@/components/search-filters"
 import { SearchResults } from "@/components/search-results"
@@ -45,6 +45,16 @@ export default function SearchPage() {
     }
   })
 
+  const [debouncedFilters, setDebouncedFilters] = useState<SearchFiltersState>(filters)
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedFilters(filters)
+    }, 500)
+
+    return () => clearTimeout(timer)
+  }, [filters])
+
   return (
     <div className="min-h-screen bg-dark-950">
       <Header />
@@ -54,7 +64,7 @@ export default function SearchPage() {
             <SearchFilters filters={filters} setFilters={setFilters} />
           </aside>
           <main className="lg:w-3/4">
-            <SearchResults filters={filters} />
+            <SearchResults filters={debouncedFilters} />
           </main>
         </div>
       </div>

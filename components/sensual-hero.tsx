@@ -1,16 +1,20 @@
 
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Star } from "lucide-react";
+import Image from "next/image";
 
 export function SensualHero() {
   return (
     <section className="relative bg-black text-white h-[90vh] flex items-center justify-center text-center overflow-hidden">
-      <div
-        className="absolute inset-0 bg-cover bg-center opacity-40"
-        style={{
-          backgroundImage: "url('/placeholder.svg?height=1080&width=1920')",
-        }}
-      ></div>
+      <div className="absolute inset-0 opacity-40">
+        <Image
+          src="/placeholder.svg?height=1080&width=1920"
+          alt="Sensual Hero Background"
+          fill
+          className="object-cover object-center"
+          priority
+        />
+      </div>
       <div className="absolute inset-0 bg-gradient-to-t from-black via-black/70 to-transparent"></div>
       <div className="relative z-10 p-8 max-w-4xl mx-auto">
         <div className="flex justify-center items-center gap-2 mb-4">

@@ -5,14 +5,20 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { AnimatedText } from "@/components/animated-text";
 import Link from "next/link";
+import Image from "next/image";
 
 export function LandingHeroSection() {
   return (
     <section className="relative min-h-[70vh] md:min-h-[80vh] flex items-center justify-center bg-black text-white overflow-hidden">
-      <div
-        className="absolute inset-0 bg-cover bg-center opacity-40"
-        style={{ backgroundImage: "url('/placeholder.jpg')" }}
-      ></div>
+      <div className="absolute inset-0 opacity-40">
+        <Image
+          src="/placeholder.jpg"
+          alt="Hero Background"
+          fill
+          className="object-cover object-center"
+          priority
+        />
+      </div>
       <div className="absolute inset-0 bg-gradient-to-t from-dark-950 via-dark-950/80 to-transparent"></div>
 
       <div className="relative z-10 text-center px-4">

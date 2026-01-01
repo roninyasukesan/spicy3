@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Play } from "lucide-react"
+import Image from "next/image"
 
 const stories = [
   {
@@ -70,11 +71,16 @@ export function StoriesSection() {
                       story.hasNewStory ? "bg-gradient-to-br from-primary-500 to-gold-500" : "bg-gray-600"
                     }`}
                   >
-                    <div className="w-full h-full bg-dark-800 rounded-full p-0.5">
-                      <div
-                        className="w-full h-full bg-gray-700 rounded-full bg-cover bg-center"
-                        style={{ backgroundImage: `url(${story.avatar})` }}
-                      />
+                    <div className="w-full h-full bg-dark-800 rounded-full p-0.5 relative">
+                      <div className="relative w-full h-full rounded-full overflow-hidden">
+                        <Image
+                          src={story.avatar}
+                          alt={story.modelName}
+                          fill
+                          className="object-cover"
+                          sizes="64px"
+                        />
+                      </div>
                     </div>
                   </div>
 

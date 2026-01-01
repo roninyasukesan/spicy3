@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Star, Shield, Eye, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Model } from "./model-details-modal";
+import Image from "next/image";
 
 interface ProfileCardProps {
   profile: Model;
@@ -24,15 +25,22 @@ export function ProfileCard({ profile, isLoggedIn, onDetailsClick }: ProfileCard
   return (
     <Card className="bg-dark-800/60 border-gray-700/50 rounded-xl overflow-hidden group transform hover:-translate-y-2 transition-transform duration-300 shadow-lg hover:shadow-primary-500/20">
       <CardContent className="p-0">
-        <div className="relative">
+        <div className="relative aspect-[3/4] overflow-hidden">
           <div
             className={cn(
-              "aspect-[3/4] bg-cover bg-center transition-all duration-500 group-hover:scale-110 cursor-pointer",
+              "w-full h-full transition-transform duration-500 group-hover:scale-110 cursor-pointer",
               { "blur-lg": !isLoggedIn }
             )}
-            style={{ backgroundImage: `url(${profile.imageUrl})` }}
             onClick={handleDetailsClick}
-          ></div>
+          >
+            <Image
+              src={profile.imageUrl}
+              alt={profile.name}
+              fill
+              className="object-cover"
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            />
+          </div>
           {!isLoggedIn && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 pointer-events-none">
               <Eye className="h-10 w-10 text-white mb-2" />
