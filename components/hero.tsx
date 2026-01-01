@@ -1,12 +1,19 @@
 import { Button } from "@/components/ui/button"
 import { Search, Shield, Star } from "lucide-react"
+import Image from "next/image"
 
 export function Hero() {
   return (
     <section className="relative min-h-[70vh] md:min-h-[80vh] flex items-center justify-center overflow-hidden">
       {/* Background with overlay */}
       <div className="absolute inset-0 bg-gradient-to-br from-dark-900 via-dark-950 to-black">
-        <div className="absolute inset-0 bg-[url('/placeholder.svg?height=800&width=1200')] bg-cover bg-center opacity-10"></div>
+        <Image
+          src="/placeholder.svg?height=800&width=1200"
+          alt="Hero Background"
+          fill
+          className="object-cover object-center opacity-10"
+          priority
+        />
         <div className="absolute inset-0 bg-gradient-to-t from-dark-950 via-dark-950/80 to-transparent"></div>
       </div>
 
