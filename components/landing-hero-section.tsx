@@ -1,13 +1,27 @@
 
 "use client";
 
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { AnimatedText } from "@/components/animated-text";
 import Link from "next/link";
 import Image from "next/image";
+import { getHomeContent, setHomeContent, type HomeContent } from "@/lib/local-auth";
+import { InlineText } from "./admin/inline-text";
 
 export function LandingHeroSection() {
+  const [content, setContent] = useState<HomeContent>(() => getHomeContent());
+
+  useEffect(() => {
+    setContent(getHomeContent());
+  }, []);
+
+  const handleUpdate = (field: keyof HomeContent, value: string) => {
+      const updated = setHomeContent({ [field]: value });
+      setContent(updated);
+  };
+
   return (
     <section className="relative min-h-[70vh] md:min-h-[80vh] flex items-center justify-center bg-black text-white overflow-hidden">
       <div className="absolute inset-0 opacity-40">
@@ -23,14 +37,20 @@ export function LandingHeroSection() {
 
       <div className="relative z-10 text-center px-4">
         <AnimatedText>
-          <h1 className="text-5xl md:text-7xl font-extrabold leading-tight mb-4 text-shadow-lg">
-            Encontre Modelos de Luxo
-          </h1>
+          <InlineText
+             tagName="h1"
+             className="text-5xl md:text-7xl font-extrabold leading-tight mb-4 text-shadow-lg"
+             value={content.heroTitle}
+             onSave={(val) => handleUpdate("heroTitle", val)}
+          />
         </AnimatedText>
         <AnimatedText delay={0.2}>
-          <p className="text-lg md:text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
-            Descubra experiências premium com segurança, discrição e confiança.
-          </p>
+          <InlineText
+             tagName="p"
+             className="text-lg md:text-xl text-gray-300 mb-8 max-w-2xl mx-auto"
+             value={content.heroSubtitle}
+             onSave={(val) => handleUpdate("heroSubtitle", val)}
+          />
         </AnimatedText>
         <AnimatedText delay={0.4}>
           <Link href="/busca">

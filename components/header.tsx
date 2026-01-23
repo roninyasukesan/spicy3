@@ -1,14 +1,70 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Flame, Menu, User, X } from "lucide-react"
+import { Flame, Menu, User, X, MessageCircle } from "lucide-react"
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "@/components/ui/dialog"
 import { LoginForm } from "@/components/login-form"
+import { type UserRole } from "@/lib/utils"
+import { localGetUser, localSignOut } from "@/lib/local-auth"
+import { getConversations } from "@/lib/local-chat"
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [role, setRole] = useState<UserRole | null>(null)
+  const [unreadCount, setUnreadCount] = useState(0)
+  const router = useRouter()
+
+  useEffect(() => {
+    const checkUnread = () => {
+       const user = localGetUser()
+       if (user) {
+         setRole(user.role)
+         const convs = getConversations(user.email)
+         const count = convs.reduce((acc, c) => acc + c.unreadCount, 0)
+         setUnreadCount(count)
+       } else {
+         setRole(null)
+         setUnreadCount(0)
+       }
+    }
+    
+    checkUnread()
+    
+    const interval = setInterval(checkUnread, 3000)
+    
+    const handleStorage = () => checkUnread()
+    window.addEventListener('storage', handleStorage)
+    
+    const bc = new BroadcastChannel("spicy_chat_updates")
+    bc.onmessage = (e) => { if (e.data.type === 'update') checkUnread() }
+    
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('storage', handleStorage)
+      bc.close()
+    }
+  }, [])
+
+  const goToDashboard = () => {
+    if (!role) return
+    if (role === "admin") {
+      router.push("/dashboard/admin")
+    } else if (role === "modelo") {
+      router.push("/dashboard/modelo")
+    } else {
+      router.push("/dashboard/cliente")
+    }
+  }
+
+  const handleLogout = () => {
+    localSignOut()
+    setRole(null)
+    router.push("/")
+    router.refresh()
+  }
 
   return (
     <header className="sticky top-0 z-50 bg-dark-950/95 backdrop-blur-md border-b border-gray-800">
@@ -35,26 +91,49 @@ export function Header() {
 
           {/* Desktop Actions */}
           <div className="hidden md:flex items-center space-x-4">
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="ghost" size="sm">
-                  <User className="h-4 w-4 mr-2" />
-                  Entrar
+            {role ? (
+              <>
+                <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard/chat')} className="relative">
+                  <MessageCircle className="h-4 w-4 mr-2" />
+                  Mensagens
+                  {unreadCount > 0 && (
+                    <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] rounded-full h-4 w-4 flex items-center justify-center transform translate-x-1/4 -translate-y-1/4">
+                      {unreadCount}
+                    </span>
+                  )}
                 </Button>
-              </DialogTrigger>
-              <DialogContent className="bg-dark-900 border-gray-800 p-0 max-w-sm rounded-lg" aria-describedby={undefined}>
-                <div className="sr-only">
-                  <DialogTitle>Login</DialogTitle>
-                </div>
-                <LoginForm />
-              </DialogContent>
-            </Dialog>
-            <Button
-              className="bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800"
-              onClick={() => (window.location.href = "/cadastro")}
-            >
-              Anunciar Grátis
-            </Button>
+                <Button variant="ghost" size="sm" onClick={goToDashboard}>
+                  <User className="h-4 w-4 mr-2" />
+                  Minha área
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleLogout}>
+                  Sair
+                </Button>
+              </>
+            ) : (
+              <>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <User className="h-4 w-4 mr-2" />
+                      Entrar
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="bg-dark-900 border-gray-800 p-0 max-w-sm rounded-lg" aria-describedby={undefined}>
+                    <div className="sr-only">
+                      <DialogTitle>Login</DialogTitle>
+                    </div>
+                    <LoginForm />
+                  </DialogContent>
+                </Dialog>
+                <Button
+                  className="bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800"
+                  onClick={() => (window.location.href = "/cadastro")}
+                >
+                  Anunciar Grátis
+                </Button>
+              </>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -77,26 +156,44 @@ export function Header() {
                 Seja VIP
               </Link>
               <div className="flex flex-col space-y-2 pt-4 border-t border-gray-800">
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button variant="ghost" size="sm">
+                {role ? (
+                  <>
+                    <Button variant="ghost" size="sm" onClick={goToDashboard}>
                       <User className="h-4 w-4 mr-2" />
-                      Entrar
+                      Minha área
                     </Button>
-                  </DialogTrigger>
-                  <DialogContent className="bg-dark-900 border-gray-800 p-0 max-w-sm rounded-lg" aria-describedby={undefined}>
-                    <div className="sr-only">
-                      <DialogTitle>Login</DialogTitle>
-                    </div>
-                    <LoginForm />
-                  </DialogContent>
-                </Dialog>
-                <Button
-                  className="bg-gradient-to-r from-primary-600 to-primary-700"
-                  onClick={() => (window.location.href = "/cadastro")}
-                >
-                  Anunciar Grátis
-                </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleLogout}
+                    >
+                      Sair
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          <User className="h-4 w-4 mr-2" />
+                          Entrar
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="bg-dark-900 border-gray-800 p-0 max-w-sm rounded-lg" aria-describedby={undefined}>
+                        <div className="sr-only">
+                          <DialogTitle>Login</DialogTitle>
+                        </div>
+                        <LoginForm />
+                      </DialogContent>
+                    </Dialog>
+                    <Button
+                      className="bg-gradient-to-r from-primary-600 to-primary-700"
+                      onClick={() => (window.location.href = "/cadastro")}
+                    >
+                      Anunciar Grátis
+                    </Button>
+                  </>
+                )}
               </div>
             </nav>
           </div>

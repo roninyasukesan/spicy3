@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -18,14 +19,26 @@ import {
   Phone,
 } from "lucide-react"
 import Image from "next/image"
+import { localGetUser } from "@/lib/local-auth"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { LoginForm } from "@/components/login-form"
 
 interface ProfileDetailsProps {
   profileId: string
 }
 
 export function ProfileDetails({ profileId }: ProfileDetailsProps) {
+  const router = useRouter()
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isLoggedIn, setIsLoggedIn] = useState(false) // Simulate login state
+  const [showLoginModal, setShowLoginModal] = useState(false)
+
+  useEffect(() => {
+    const user = localGetUser()
+    if (user) {
+      setIsLoggedIn(true)
+    }
+  }, [])
 
   // Mock data - replace with actual API call
   const profile = {
@@ -196,7 +209,17 @@ export function ProfileDetails({ profileId }: ProfileDetailsProps) {
                   <Calendar className="h-4 w-4 mr-2" />
                   Agendar Encontro
                 </Button>
-                <Button variant="outline" className="w-full border-gray-600 text-gray-300 bg-transparent">
+                <Button 
+                  variant="outline" 
+                  className="w-full border-gray-600 text-gray-300 bg-transparent"
+                  onClick={() => {
+                    if (isLoggedIn) {
+                      router.push(`/dashboard/chat?contactId=${encodeURIComponent(profileId)}`)
+                    } else {
+                      setShowLoginModal(true)
+                    }
+                  }}
+                >
                   <MessageCircle className="h-4 w-4 mr-2" />
                   Chat Privado
                 </Button>
@@ -244,6 +267,13 @@ export function ProfileDetails({ profileId }: ProfileDetailsProps) {
           </Card>
         </div>
       </div>
+      
+      <Dialog open={showLoginModal} onOpenChange={setShowLoginModal}>
+        <DialogContent className="bg-transparent border-none p-0 max-w-md">
+          <DialogTitle className="sr-only">Login</DialogTitle>
+          <LoginForm />
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

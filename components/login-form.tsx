@@ -11,11 +11,16 @@ import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { SignupOptions } from "@/components/signup-options";
 import Image from "next/image";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import { localSignIn } from "@/lib/local-auth";
 
-export function LoginForm() {
+type LoginFormProps = {
+  onSuccess?: () => void
+}
+
+export function LoginForm({ onSuccess }: LoginFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -27,21 +32,58 @@ export function LoginForm() {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      let loggedUser: any = null;
 
-      if (error) {
-        throw error;
+      // 1. Try Supabase Auth first
+      if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (!error && data.user) {
+          // Fetch profile for role
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('role, display_name')
+            .eq('id', data.user.id)
+            .single();
+          
+          loggedUser = {
+            id: data.user.id,
+            email: data.user.email!,
+            role: profile?.role || 'client',
+            name: profile?.display_name || data.user.email?.split('@')[0] || 'Usuário',
+          };
+
+          // Sync to localStorage for compatibility with local-auth
+          if (typeof window !== 'undefined') {
+            localStorage.setItem("spicy-auth-user", JSON.stringify(loggedUser));
+          }
+        }
       }
+
+      // 2. Fallback to Local Auth if not logged in via Supabase
+      if (!loggedUser) {
+        const { user } = await localSignIn(email, password);
+        loggedUser = user;
+      }
+
+      const role = loggedUser.role;
 
       toast({
         title: "Login realizado com sucesso!",
         description: "Bem-vindo de volta.",
       });
 
-      router.push("/");
+      if (role === "admin") {
+        router.push("/dashboard/admin");
+      } else if (role === "modelo") {
+        router.push("/dashboard/modelo");
+      } else {
+        router.push("/dashboard/cliente");
+      }
+      onSuccess?.()
       router.refresh();
     } catch (error: any) {
       toast({
@@ -55,18 +97,11 @@ export function LoginForm() {
   };
 
   const handleGoogleLogin = async () => {
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-      });
-      if (error) throw error;
-    } catch (error: any) {
-      toast({
-        title: "Erro no login com Google",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
+    toast({
+      title: "Login com Google indisponível",
+      description: "Use e-mail e senha para entrar no modo local.",
+      variant: "destructive",
+    });
   };
 
   return (
@@ -149,4 +184,3 @@ export function LoginForm() {
     </Card>
   );
 }
-

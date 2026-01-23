@@ -3,6 +3,8 @@ import type { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
+import { FloatingChat } from "@/components/floating-chat"
+import { AgeVerificationModal } from "@/components/age-verification-modal"
 
 const inter = Inter({
   subsets: ["latin"],
@@ -31,6 +33,8 @@ export default function RootLayout({
       <body className={`${inter.variable} font-sans antialiased textured-background`}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
           {children}
+          <FloatingChat />
+          <AgeVerificationModal />
         </ThemeProvider>
       </body>
     </html>

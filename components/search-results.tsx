@@ -3,76 +3,138 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { MapPin, Star, Eye, Heart, Shield, MessageCircle } from "lucide-react"
+import { MapPin, Star, Eye, Heart, Shield, MessageCircle, PlayCircle, Filter, ChevronUp, ChevronDown, Clock, DollarSign } from "lucide-react"
 import { AnimatedText } from "@/components/animated-text";
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import { ModelDetailsModal, Model } from "@/components/model-details-modal";
 import { SearchFiltersState } from "@/app/busca/page";
 import { PhysicalCharacteristics } from "@/lib/physical-characteristics";
-import { mockProfiles, ModelWithCharacteristics } from "@/lib/mock-profiles";
-import { fetchProfiles, fetchProfilesFiltered } from "@/lib/db/profiles";
-
-const allProfiles: ModelWithCharacteristics[] = mockProfiles;
+import { getAllLocalProfiles } from "@/lib/local-auth";
+import { StoryViewer } from "@/components/story-viewer";
+import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Slider } from "@/components/ui/slider"
+import { SearchFilters } from "@/components/search-filters"
+import { locations } from "@/lib/brazil-locations";
 
 interface SearchResultsProps {
   filters: SearchFiltersState;
+  setFilters: (filters: SearchFiltersState) => void;
+  isFiltersOpen?: boolean;
+  setIsFiltersOpen?: (isOpen: boolean) => void;
 }
 
-export function SearchResults({ filters }: SearchResultsProps) {
+export function SearchResults({ filters, setFilters, isFiltersOpen = false, setIsFiltersOpen = () => {} }: SearchResultsProps) {
   const [selectedModel, setSelectedModel] = useState<Model | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [filteredProfiles, setFilteredProfiles] = useState<ModelWithCharacteristics[]>(allProfiles);
-  const [profiles, setProfiles] = useState<ModelWithCharacteristics[]>(allProfiles);
+  const [filteredProfiles, setFilteredProfiles] = useState<Model[]>([]);
+  const [profiles, setProfiles] = useState<Model[]>([]);
+  const [sortBy, setSortBy] = useState<string>("relevance");
 
   useEffect(() => {
-    let mounted = true
-    async function load() {
-      const serverData = await fetchProfilesFiltered({
-        cities: filters.cities,
-        services: filters.services,
-        fetishes: filters.fetishes,
-      })
-      if (!mounted) return
-      const baseData = serverData && serverData.length > 0 ? serverData : await fetchProfiles()
-      if (!baseData || baseData.length === 0) {
-        setProfiles(allProfiles)
-        return
-      }
-      const mapped: ModelWithCharacteristics[] = baseData.map(p => ({
-        id: p.id,
-        name: p.name,
-        city: p.city,
-        price: p.price,
-        imageUrl: p.image_url ?? "/placeholder.svg?height=400&width=300",
-        age: p.age ?? 0,
-        rating: p.rating ?? 0,
-        reviews: p.reviews ?? 0,
-        isVerified: p.is_verified ?? true,
-        bio: p.bio ?? "",
-        services: p.services ?? [],
-        fetishes: p.fetishes ?? [],
-        gallery: p.gallery ?? [],
-        characteristics: p.characteristics ?? undefined
-      }))
-      setProfiles(mapped)
-    }
-    load()
-    return () => {
-      mounted = false
-    }
-  }, [filters.cities, filters.services, filters.fetishes])
+    const localProfiles = getAllLocalProfiles();
+    const mapped: Model[] = localProfiles.map((p, index) => {
+        const id = p.email;
+        
+        // Normalize characteristics to match filter options
+        const normalizeHairColor = (color?: string) => {
+           if (!color) return "Morena";
+           if (color.includes("Loir")) return "Loira";
+           if (color.includes("Moren")) return "Morena";
+           if (color.includes("Ruiv")) return "Ruiva";
+           if (color.includes("Pret")) return "Preta";
+           if (color.includes("Castanh")) return "Castanha";
+           return "Morena";
+        };
+
+        const normalizeEyes = (eyes?: string) => {
+            if (!eyes) return "Castanho";
+            if (eyes.includes("Azul") || eyes.includes("Azuis")) return "Azul";
+            if (eyes.includes("Verde")) return "Verde";
+            if (eyes.includes("Castanho")) return "Castanho";
+            if (eyes.includes("Preto")) return "Preto";
+            if (eyes.includes("Mel")) return "Mel";
+            return "Castanho";
+        };
+
+        const normalizeBreasts = (breasts?: string) => {
+            if (!breasts) return "Naturais Médios";
+            if (breasts.includes("Pequen")) return "Naturais Pequenos";
+            if (breasts.includes("Médi")) return "Naturais Médios";
+            if (breasts.includes("Grand")) return "Naturais Grandes";
+            if (breasts.includes("Silicon")) return "Silicone Médio";
+            return "Naturais Médios";
+        };
+
+        return {
+            id: id,
+            name: p.artisticName,
+            city: p.city,
+            price: p.priceRange,
+            imageUrl: p.coverImage || p.photos?.[0] || "/placeholder.svg?height=400&width=300",
+            age: parseInt(p.age) || 20,
+            rating: parseFloat((Math.random() * 1.5 + 3.5).toFixed(1)), 
+            reviews: Math.floor(Math.random() * 50) + 10,
+            isVerified: true,
+            isOnline: Math.random() > 0.7,
+            bio: p.bio,
+            services: p.services,
+            fetishes: p.fetishes,
+            gallery: p.photos || [],
+            stories: p.stories || [],
+            characteristics: {
+                hairColor: normalizeHairColor(p.characteristics.hairColor),
+                ethnicity: p.characteristics.ethnicity || "Branca",
+                bodyType: p.characteristics.bodyType || "Curvilínea",
+                height: p.characteristics.height || "Mediana",
+                ageRange: p.characteristics.age || "18–22",
+                eyes: normalizeEyes(p.characteristics.eyes),
+                breasts: normalizeBreasts(p.characteristics.breasts),
+                tattoos: p.characteristics.tattoos === "Sim" ? "Algumas" : "Nenhuma",
+                piercings: p.characteristics.piercings === "Sim" ? "Vários" : "Nenhum"
+            }
+        };
+    });
+    setProfiles(mapped);
+  }, []);
 
   useEffect(() => {
     const filtered = profiles.filter(profile => {
+      // Filter by State
+      if (filters.state) {
+        // If cities are selected, they must be in the selected state implicitly because UI clears cities on state change.
+        // But we must check if the profile's city belongs to the selected state if cities array is empty.
+        // If cities array is NOT empty, we just check cities inclusion (which is standard).
+        // But we should strictly enforce state match in case of same city name in different states (unlikely but possible).
+        
+        const stateCities = (filters.state in locations) 
+          ? Object.keys(locations[filters.state as keyof typeof locations] || {}) 
+          : [];
+        if (!stateCities.includes(profile.city)) {
+          return false;
+        }
+      }
+
       // Filter by City
       if (filters.cities.length > 0 && !filters.cities.includes(profile.city)) {
+        return false;
+      }
+
+      // Filter by Online Now
+      if (filters.onlineNow && !profile.isOnline) {
         return false;
       }
 
       // Filter by Price
       const priceValue = parseInt(profile.price.replace(/\D/g, ""));
       if (priceValue < filters.priceRange[0] || priceValue > filters.priceRange[1]) {
+        return false;
+      }
+
+      // Filter by Rating
+      if (filters.minRating > 0 && profile.rating < filters.minRating) {
         return false;
       }
 
@@ -171,8 +233,36 @@ export function SearchResults({ filters }: SearchResultsProps) {
       return true;
     });
 
-    setFilteredProfiles(filtered);
-  }, [filters, profiles]);
+    let sorted = [...filtered];
+    switch (sortBy) {
+      case "price_asc":
+        sorted.sort((a, b) => {
+          const priceA = parseInt(a.price.replace(/\D/g, "")) || 0;
+          const priceB = parseInt(b.price.replace(/\D/g, "")) || 0;
+          return priceA - priceB;
+        });
+        break;
+      case "price_desc":
+        sorted.sort((a, b) => {
+          const priceA = parseInt(a.price.replace(/\D/g, "")) || 0;
+          const priceB = parseInt(b.price.replace(/\D/g, "")) || 0;
+          return priceB - priceA;
+        });
+        break;
+      case "rating":
+        sorted.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+        break;
+      case "online":
+        sorted.sort((a, b) => (a.isOnline === b.isOnline ? 0 : a.isOnline ? -1 : 1));
+        break;
+      case "relevance":
+      default:
+        // Keep original order
+        break;
+    }
+
+    setFilteredProfiles(sorted);
+  }, [filters, profiles, sortBy]);
 
   const handleOpenModal = (model: Model) => {
     setSelectedModel(model);
@@ -183,8 +273,121 @@ export function SearchResults({ filters }: SearchResultsProps) {
     setIsModalOpen(false);
   };
 
+  const router = useRouter();
+
+  const handleOpenStoriesPage = (profileId: string) => {
+    router.push(`/stories?id=${encodeURIComponent(profileId)}`);
+  };
+
   return (
     <div className="space-y-6">
+      {/* Stories Bar - Instagram Style */}
+      <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
+        {profiles.filter(p => p.stories && p.stories.length > 0).map((profile) => (
+          <div 
+            key={profile.id} 
+            className="flex flex-col items-center gap-2 flex-shrink-0 cursor-pointer group"
+            onClick={() => handleOpenStoriesPage(profile.id)}
+          >
+            <div className="relative w-16 h-16 sm:w-20 sm:h-20 p-[2px] rounded-full bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-500">
+              <div className="w-full h-full rounded-full border-2 border-dark-950 overflow-hidden relative">
+                <Image
+                  src={profile.imageUrl}
+                  alt={profile.name}
+                  fill
+                  className="object-cover transition-transform duration-300 group-hover:scale-110"
+                />
+              </div>
+            </div>
+            <span className="text-xs text-white truncate w-20 text-center">{profile.name}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Mobile Filter Bar (Simple + Advanced) */}
+      <div className="lg:hidden mb-6 space-y-4">
+        <div className="flex gap-2 items-center overflow-x-auto pb-2 scrollbar-hide">
+          {/* Online Toggle */}
+          <Button
+            variant={filters.onlineNow ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFilters({ ...filters, onlineNow: !filters.onlineNow })}
+            className={cn(
+              "whitespace-nowrap rounded-full text-xs h-8",
+              filters.onlineNow ? "bg-green-600 hover:bg-green-700" : "bg-dark-800 border-gray-700 text-gray-300"
+            )}
+          >
+            <Clock className="w-3 h-3 mr-1.5" />
+            Online agora
+          </Button>
+
+          {/* Rating Filter */}
+          <Button
+            variant={filters.minRating > 0 ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFilters({ ...filters, minRating: filters.minRating > 0 ? 0 : 4.5 })}
+            className={cn(
+              "whitespace-nowrap rounded-full text-xs h-8",
+              filters.minRating > 0 ? "bg-yellow-600 hover:bg-yellow-700" : "bg-dark-800 border-gray-700 text-gray-300"
+            )}
+          >
+            <Star className="w-3 h-3 mr-1.5" />
+            4.5+
+          </Button>
+
+          {/* Price Popover */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="whitespace-nowrap rounded-full text-xs h-8 bg-dark-800 border-gray-700 text-gray-300">
+                <DollarSign className="w-3 h-3 mr-1.5" />
+                Preço: R$ {filters.priceRange[0]} - {filters.priceRange[1]}+
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80 bg-dark-900 border-gray-700">
+              <div className="space-y-4">
+                <h4 className="font-medium text-white text-sm">Faixa de Preço (R$)</h4>
+                <Slider
+                  value={filters.priceRange}
+                  onValueChange={(val) => setFilters({ ...filters, priceRange: val })}
+                  max={1000}
+                  min={50}
+                  step={50}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs text-gray-400">
+                  <span>R$ {filters.priceRange[0]}</span>
+                  <span>R$ {filters.priceRange[1]}+</span>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {/* Advanced Filters Toggle */}
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+            className={cn(
+              "whitespace-nowrap rounded-full text-xs h-8 border transition-all",
+              isFiltersOpen 
+                ? "bg-primary-600 text-white border-primary-600" 
+                : "bg-dark-800 border-gray-700 text-gray-300 hover:bg-dark-700"
+            )}
+          >
+            <Filter className="w-3 h-3 mr-1.5" />
+            Mais Filtros
+            {isFiltersOpen ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />}
+          </Button>
+        </div>
+
+        {/* Advanced Filters Content */}
+        {isFiltersOpen && (
+          <div className="bg-dark-900/50 rounded-lg border border-gray-800 p-4 animate-in slide-in-from-top-2 duration-200">
+             <SearchFilters filters={filters} setFilters={setFilters} isOpen={true} />
+          </div>
+        )}
+      </div>
+
       {/* Results Header */}
       <AnimatedText>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -197,19 +400,25 @@ export function SearchResults({ filters }: SearchResultsProps) {
       <AnimatedText delay={0.1}>
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
           <span className="text-gray-400 text-sm">Ordenar por:</span>
-          <select className="bg-dark-700 border border-gray-600 rounded px-3 py-1 text-white text-sm w-full sm:w-auto">
-            <option>Mais relevantes</option>
-            <option>Menor preço</option>
-            <option>Maior preço</option>
-            <option>Melhor avaliação</option>
-            <option>Online agora</option>
+          <select 
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="bg-dark-700 border border-gray-600 rounded px-3 py-1 text-white text-sm w-full sm:w-auto"
+          >
+            <option value="relevance">Mais relevantes</option>
+            <option value="price_asc">Menor preço</option>
+            <option value="price_desc">Maior preço</option>
+            <option value="rating">Melhor avaliação</option>
+            <option value="online">Online agora</option>
           </select>
         </div>
       </AnimatedText>
 
       {/* Results Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {filteredProfiles.map((profile, index) => (
+        {filteredProfiles.map((profile, index) => {
+          const hasStories = profile.stories && profile.stories.length > 0;
+          return (
           <AnimatedText key={profile.id} delay={index * 0.1 + 0.2}>
             <Card className="bg-dark-800/50 border-gray-700 card-hover overflow-hidden">
               <CardContent className="p-0">
@@ -226,11 +435,40 @@ export function SearchResults({ filters }: SearchResultsProps) {
                       className="object-cover"
                       sizes="(max-width: 640px) 100vw, 192px"
                     />
+                    {hasStories && (
+                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+                         <Button 
+                           size="sm" 
+                           variant="secondary"
+                           className="bg-pink-500/80 hover:bg-pink-500 text-white rounded-full px-4"
+                           onClick={(e) => {
+                             e.stopPropagation();
+                             handleOpenStoriesPage(profile.id);
+                           }}
+                         >
+                           <PlayCircle className="w-4 h-4 mr-2" />
+                           Ver Story
+                         </Button>
+                      </div>
+                    )}
+                    {hasStories && (
+                      <div className="absolute inset-0 pointer-events-none border-4 border-pink-500/50 z-10" />
+                    )}
                     <div className="absolute inset-0 bg-black/30 hover:bg-black/10 transition-colors"></div>
 
                     {/* Status Badges */}
                     <div className="absolute top-3 left-3 flex flex-col gap-1">
-                      {(profile.isVerified ?? true) && <Badge className="bg-blue-500 text-white text-xs">Verificado</Badge>}
+                      {profile.isOnline && (
+                        <Badge className="bg-green-500/90 hover:bg-green-600 text-white text-xs border-none backdrop-blur-sm flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                          Online
+                        </Badge>
+                      )}
+                      {(profile.isVerified ?? true) && (
+                        <Badge className="bg-blue-500/90 hover:bg-blue-600 text-white text-xs border-none backdrop-blur-sm">
+                          Verificado
+                        </Badge>
+                      )}
                     </div>
 
                     {/* Heart Icon */}
@@ -254,36 +492,46 @@ export function SearchResults({ filters }: SearchResultsProps) {
                         <h3 className="font-semibold text-xl text-white mb-1">
                           {profile.name}, {profile.age}
                         </h3>
-                        <div className="flex items-center text-gray-400 text-sm mb-2">
-                          <MapPin className="h-4 w-4 mr-1" />
-                          <span>{profile.city}</span>
-                        </div>
-                        <div className="flex items-center text-gold-500 text-sm">
-                          <Star className="h-4 w-4 fill-current mr-1" />
-                          <span>{profile.rating}</span>
-                          <span className="text-gray-400 ml-1">({profile.reviews} avaliações)</span>
+                        <div className="flex items-center text-primary-400 text-sm">
+                          <MapPin className="h-3 w-3 mr-1" />
+                          {profile.city}
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-primary-500 font-bold text-lg">{profile.price}</div>
+                        <div className="text-lg font-bold text-primary-400">{profile.price}</div>
+                        <div className="flex items-center text-yellow-500 text-xs justify-end mt-1">
+                          <Star className="h-3 w-3 fill-current mr-1" />
+                          <span>{profile.rating}</span>
+                          <span className="text-gray-500 ml-1">({profile.reviews})</span>
+                        </div>
                       </div>
                     </div>
 
-                    <p className="text-gray-300 text-sm mb-4 line-clamp-2">{profile.bio}</p>
+                    <p className="text-gray-400 text-sm line-clamp-2 mb-4">
+                      {profile.bio}
+                    </p>
 
-                    <div className="flex items-center space-x-3">
-                      <Button
-                        size="sm"
-                        className="bg-primary-600 hover:bg-primary-700 flex-1"
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {profile.services?.slice(0, 3).map((service) => (
+                        <Badge key={service} variant="secondary" className="bg-dark-700 hover:bg-dark-600 text-gray-300 border-none text-xs">
+                          {service}
+                        </Badge>
+                      ))}
+                      {(profile.services?.length || 0) > 3 && (
+                        <Badge variant="secondary" className="bg-dark-700 text-gray-300 border-none text-xs">
+                          +{(profile.services?.length || 0) - 3}
+                        </Badge>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 mt-auto">
+                      <Button 
+                        className="flex-1 bg-primary hover:bg-primary/90 text-white"
                         onClick={() => handleOpenModal(profile)}
                       >
-                        Ver Perfil Completo
+                        Ver Perfil
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="border-green-500 text-green-500 hover:bg-green-500 hover:text-white bg-transparent"
-                      >
+                      <Button variant="outline" size="icon" className="border-primary text-primary hover:bg-primary/10">
                         <MessageCircle className="h-4 w-4" />
                       </Button>
                     </div>
@@ -292,27 +540,15 @@ export function SearchResults({ filters }: SearchResultsProps) {
               </CardContent>
             </Card>
           </AnimatedText>
-        ))}
+          );
+        })}
       </div>
 
-      {/* Load More */}
-      <AnimatedText delay={filteredProfiles.length * 0.1 + 0.3}>
-        <div className="text-center">
-          <Button
-            variant="outline"
-            size="lg"
-            className="border-primary-500 text-primary-500 hover:bg-primary-500 hover:text-white bg-transparent"
-          >
-            Carregar Mais Resultados
-          </Button>
-        </div>
-      </AnimatedText>
-      
       <ModelDetailsModal 
         model={selectedModel} 
         isOpen={isModalOpen} 
         onClose={handleCloseModal} 
       />
     </div>
-  )
+  );
 }

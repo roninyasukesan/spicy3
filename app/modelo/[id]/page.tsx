@@ -1,6 +1,7 @@
 
 import { ModelProfile } from "@/components/model-profile";
 
-export default function ModelProfilePage({ params }: { params: { id: string } }) {
-  return <ModelProfile profileId={params.id} />;
+export default async function ModelProfilePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return <ModelProfile profileId={id} />;
 }

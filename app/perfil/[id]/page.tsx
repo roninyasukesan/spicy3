@@ -3,16 +3,17 @@ import { Footer } from "@/components/footer"
 import { ProfileDetailsFetched } from "@/components/profile-details-fetched"
 
 interface ProfilePageProps {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
-export default function ProfilePage({ params }: ProfilePageProps) {
+export default async function ProfilePage({ params }: ProfilePageProps) {
+  const { id } = await params;
   return (
     <div className="min-h-screen bg-dark-950">
       <Header />
-      <ProfileDetailsFetched profileId={params.id} />
+      <ProfileDetailsFetched profileId={id} />
       <Footer />
     </div>
   )

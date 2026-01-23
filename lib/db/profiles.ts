@@ -71,6 +71,37 @@ export async function fetchProfilesFiltered(filters: ProfilesFilterInput): Promi
 }
 
 export async function fetchProfileById(id: string): Promise<DbProfile | null> {
+  // Check local storage first (client-side only)
+  if (typeof window !== "undefined") {
+    try {
+      const { getModelProfile } = await import("@/lib/local-auth");
+      // Decode ID in case it's an email with special chars
+      const decodedId = decodeURIComponent(id);
+      const local = getModelProfile(decodedId);
+      
+      if (local) {
+        return {
+          id: id,
+          name: local.artisticName,
+          city: local.city,
+          price: local.priceRange,
+          image_url: local.photos?.[0] || null,
+          age: parseInt(local.age) || 25,
+          rating: 5.0,
+          reviews: 0,
+          is_verified: true,
+          bio: local.bio,
+          services: local.services,
+          fetishes: local.fetishes,
+          gallery: local.photos || [],
+          characteristics: local.characteristics
+        };
+      }
+    } catch (e) {
+      console.error("Error fetching local profile:", e);
+    }
+  }
+
   if (!hasSupabaseConfig()) return null
   const { data, error } = await supabase
     .from("profiles")

@@ -1,13 +1,27 @@
 
 "use client";
 
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Search, Crown, UserPlus } from "lucide-react";
 import { AnimatedText } from "@/components/animated-text";
 import Link from "next/link";
+import { getHomeContent, setHomeContent, type HomeContent } from "@/lib/local-auth";
+import { InlineText } from "./admin/inline-text";
 
 export function LandingShortcutsSection() {
+  const [content, setContent] = useState<HomeContent>(() => getHomeContent());
+
+  useEffect(() => {
+    setContent(getHomeContent());
+  }, []);
+
+  const handleUpdate = (field: keyof HomeContent, value: string) => {
+      const updated = setHomeContent({ [field]: value });
+      setContent(updated);
+  };
+
   return (
     <section className="bg-dark-950 py-16">
       <div className="container mx-auto px-4">
@@ -18,10 +32,20 @@ export function LandingShortcutsSection() {
                 <Search className="h-12 w-12 text-red-500 mx-auto mb-4" />
               </AnimatedText>
               <AnimatedText delay={0.1}>
-                <h3 className="text-xl font-bold mb-2">Buscar Modelos</h3>
+                <InlineText 
+                    tagName="h3" 
+                    className="text-xl font-bold mb-2" 
+                    value={content.shortcutSearchTitle} 
+                    onSave={(val) => handleUpdate("shortcutSearchTitle", val)}
+                />
               </AnimatedText>
               <AnimatedText delay={0.2}>
-                <p className="text-gray-400 mb-6">Encontre a modelo ideal para seus desejos.</p>
+                <InlineText 
+                    tagName="p" 
+                    className="text-gray-400 mb-6" 
+                    value={content.shortcutSearchDesc} 
+                    onSave={(val) => handleUpdate("shortcutSearchDesc", val)}
+                />
               </AnimatedText>
               <AnimatedText delay={0.3}>
                 <Link href="/busca">
@@ -40,10 +64,20 @@ export function LandingShortcutsSection() {
                 <Crown className="h-12 w-12 text-red-500 mx-auto mb-4" />
               </AnimatedText>
               <AnimatedText delay={0.2}>
-                <h3 className="text-xl font-bold mb-2">Assine VIP</h3>
+                <InlineText 
+                    tagName="h3" 
+                    className="text-xl font-bold mb-2" 
+                    value={content.shortcutVipTitle} 
+                    onSave={(val) => handleUpdate("shortcutVipTitle", val)}
+                />
               </AnimatedText>
               <AnimatedText delay={0.3}>
-                <p className="text-gray-400 mb-6">Desbloqueie recursos exclusivos e acesso ilimitado.</p>
+                <InlineText 
+                    tagName="p" 
+                    className="text-gray-400 mb-6" 
+                    value={content.shortcutVipDesc} 
+                    onSave={(val) => handleUpdate("shortcutVipDesc", val)}
+                />
               </AnimatedText>
               <AnimatedText delay={0.4}>
                 <Link href="/vip">
@@ -62,10 +96,20 @@ export function LandingShortcutsSection() {
                 <UserPlus className="h-12 w-12 text-red-500 mx-auto mb-4" />
               </AnimatedText>
               <AnimatedText delay={0.3}>
-                <h3 className="text-xl font-bold mb-2">Anuncie Aqui</h3>
+                <InlineText 
+                    tagName="h3" 
+                    className="text-xl font-bold mb-2" 
+                    value={content.shortcutAdvertiseTitle} 
+                    onSave={(val) => handleUpdate("shortcutAdvertiseTitle", val)}
+                />
               </AnimatedText>
               <AnimatedText delay={0.4}>
-                <p className="text-gray-400 mb-6">Seja uma modelo de luxo e monetize seu talento.</p>
+                <InlineText 
+                    tagName="p" 
+                    className="text-gray-400 mb-6" 
+                    value={content.shortcutAdvertiseDesc} 
+                    onSave={(val) => handleUpdate("shortcutAdvertiseDesc", val)}
+                />
               </AnimatedText>
               <AnimatedText delay={0.5}>
                 <Link href="/cadastro">

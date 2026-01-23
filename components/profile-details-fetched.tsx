@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -19,15 +20,30 @@ import {
 } from "lucide-react"
 import { fetchProfileById } from "@/lib/db/profiles"
 import Image from "next/image"
+import { localGetUser } from "@/lib/local-auth"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { LoginForm } from "@/components/login-form"
+import { SubscriptionModal } from "@/components/subscription-modal"
+import { cn } from "@/lib/utils"
 
 interface ProfileDetailsProps {
   profileId: string
 }
 
 export function ProfileDetailsFetched({ profileId }: ProfileDetailsProps) {
+  const router = useRouter()
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [currentUser, setCurrentUser] = useState<any | null>(null)
   const [profile, setProfile] = useState<any | null>(null)
+  const [showLoginModal, setShowLoginModal] = useState(false)
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false)
+
+  useEffect(() => {
+    const user = localGetUser()
+    setCurrentUser(user)
+    setIsLoggedIn(!!user)
+  }, [])
 
   useEffect(() => {
     let mounted = true
@@ -89,12 +105,18 @@ export function ProfileDetailsFetched({ profileId }: ProfileDetailsProps) {
     }
   }, [profileId])
 
+  const hasContentAccess = currentUser?.plan === "vip" || currentUser?.subscribedModelIds?.includes(profileId) || currentUser?.role === "admin" || currentUser?.role === "modelo"
+
   const handleImageClick = (index: number) => {
-    if (isLoggedIn) {
+    if (hasContentAccess) {
       setCurrentImageIndex(index)
-    } else {
-      alert("Faça login para ver as fotos")
+      return
     }
+    if (!currentUser) {
+      setShowLoginModal(true)
+      return
+    }
+    setShowSubscriptionModal(true)
   }
 
   return (
@@ -109,7 +131,7 @@ export function ProfileDetailsFetched({ profileId }: ProfileDetailsProps) {
           <Card className="bg-dark-800/50 border-gray-700">
             <CardContent className="p-0">
               <div className="relative aspect-[4/5] mb-4">
-                {isLoggedIn && profile ? (
+                {profile ? (
                   <div
                     className="w-full h-full rounded-t-lg cursor-pointer overflow-hidden relative"
                     onClick={() => handleImageClick(currentImageIndex)}
@@ -118,22 +140,20 @@ export function ProfileDetailsFetched({ profileId }: ProfileDetailsProps) {
                       src={profile.images[currentImageIndex]}
                       alt={profile.name}
                       fill
-                      className="object-cover"
+                      className={cn("object-cover", !hasContentAccess && "blur-md")}
                       priority
                     />
+                    {!hasContentAccess && (
+                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                        <div className="text-center">
+                          <Eye className="h-12 w-12 text-gray-300 mx-auto mb-2" />
+                          <p className="text-gray-200">Conteúdo VIP</p>
+                          <p className="text-gray-400 text-sm">Assine para ver as fotos</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <div
-                    className="w-full h-full bg-gradient-to-br from-gray-800 to-gray-900 blur-content flex items-center justify-center rounded-t-lg cursor-pointer"
-                    onClick={() => setIsLoggedIn(true)}
-                  >
-                    <div className="text-center">
-                      <Eye className="h-12 w-12 text-gray-500 mx-auto mb-2" />
-                      <p className="text-gray-400">Clique para fazer login</p>
-                      <p className="text-gray-500 text-sm">e ver as fotos</p>
-                    </div>
-                  </div>
-                )}
+                ) : null}
 
                 <div className="absolute top-4 left-4 flex flex-col gap-2">
                   {profile?.isVip && (
@@ -164,17 +184,16 @@ export function ProfileDetailsFetched({ profileId }: ProfileDetailsProps) {
                     }`}
                     onClick={() => handleImageClick(index)}
                   >
-                    {isLoggedIn ? (
-                      <Image
-                        src={image}
-                        alt={`${profile.name} ${index + 1}`}
-                        fill
-                        className="object-cover"
-                        sizes="(max-width: 768px) 25vw, 15vw"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-gray-700 blur-content flex items-center justify-center">
-                        <Camera className="h-4 w-4 text-gray-500" />
+                    <Image
+                      src={image}
+                      alt={`${profile.name} ${index + 1}`}
+                      fill
+                      className={cn("object-cover", !hasContentAccess && "blur-md")}
+                      sizes="(max-width: 768px) 25vw, 15vw"
+                    />
+                    {!hasContentAccess && (
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                        <Camera className="h-4 w-4 text-gray-300" />
                       </div>
                     )}
                   </div>
@@ -222,7 +241,17 @@ export function ProfileDetailsFetched({ profileId }: ProfileDetailsProps) {
                   <Calendar className="h-4 w-4 mr-2" />
                   Agendar Encontro
                 </Button>
-                <Button variant="outline" className="w-full border-gray-600 text-gray-300 bg-transparent">
+                <Button 
+                  variant="outline" 
+                  className="w-full border-gray-600 text-gray-300 bg-transparent"
+                  onClick={() => {
+                    if (isLoggedIn) {
+                      router.push(`/dashboard/chat?contactId=${encodeURIComponent(profile?.id || profileId)}`)
+                    } else {
+                      setShowLoginModal(true)
+                    }
+                  }}
+                >
                   <MessageCircle className="h-4 w-4 mr-2" />
                   Chat Privado
                 </Button>
@@ -268,6 +297,21 @@ export function ProfileDetailsFetched({ profileId }: ProfileDetailsProps) {
           </Card>
         </div>
       </div>
+
+      <Dialog open={showLoginModal} onOpenChange={setShowLoginModal}>
+        <DialogContent className="bg-transparent border-none p-0 max-w-md">
+          <DialogTitle className="sr-only">Login</DialogTitle>
+          <LoginForm />
+        </DialogContent>
+      </Dialog>
+
+      <SubscriptionModal
+        isOpen={showSubscriptionModal}
+        onClose={() => setShowSubscriptionModal(false)}
+        modelName={profile?.name || "Modelo"}
+        modelId={profileId}
+        onSuccess={() => setShowSubscriptionModal(false)}
+      />
     </div>
   )
 }

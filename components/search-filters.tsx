@@ -1,26 +1,29 @@
 "use client"
 
-import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Slider } from "@/components/ui/slider"
-import { MapPin, DollarSign, Clock, Filter, X, Flame, ChevronDown, ChevronUp } from "lucide-react"
+import { MapPin, DollarSign, Clock, Filter, Flame } from "lucide-react"
 import { AnimatedText } from "@/components/animated-text";
 import { FETISH_CATEGORIES } from "@/lib/fetishes";
 import { PHYSICAL_CHARACTERISTICS, PhysicalCharacteristics } from "@/lib/physical-characteristics";
 import { SearchFiltersState } from "@/app/busca/page";
+import { locations } from "@/lib/brazil-locations";
 
 interface SearchFiltersProps {
   filters: SearchFiltersState;
   setFilters: (filters: SearchFiltersState) => void;
+  isOpen: boolean;
 }
 
-export function SearchFilters({ filters, setFilters }: SearchFiltersProps) {
-  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+export function SearchFilters({ filters, setFilters, isOpen }: SearchFiltersProps) {
   // Removed local state: priceRange, selectedFilters, selectedFetishes
 
-  const cities = ["São Paulo", "Rio de Janeiro", "Belo Horizonte", "Brasília", "Salvador", "Fortaleza"]
+  // Derived state for cities based on selected state
+  const availableCities = filters.state && filters.state in locations 
+    ? Object.keys(locations[filters.state as keyof typeof locations] || {}) 
+    : []
+
   const services = ["Acompanhante", "Massagem", "Jantar", "Viagem", "Eventos"]
 
   const toggleFilter = (filter: string) => {
@@ -53,6 +56,14 @@ export function SearchFilters({ filters, setFilters }: SearchFiltersProps) {
     })
   }
 
+  const handleStateChange = (state: string) => {
+    setFilters({
+      ...filters,
+      state,
+      cities: [] // Clear cities when state changes
+    })
+  }
+
   const toggleCity = (city: string) => {
     setFilters({
       ...filters,
@@ -78,11 +89,13 @@ export function SearchFilters({ filters, setFilters }: SearchFiltersProps) {
 
   const clearFilters = () => {
     setFilters({
+      state: "",
       priceRange: [50, 1000],
       services: [],
       fetishes: [],
       cities: [],
       onlineNow: false,
+      minRating: 0,
       characteristics: {
         hairColor: [],
         ethnicity: [],
@@ -99,21 +112,7 @@ export function SearchFilters({ filters, setFilters }: SearchFiltersProps) {
 
   return (
     <div className="space-y-6">
-      <div className="lg:hidden">
-        <Button 
-          variant="outline"
-          onClick={() => setIsFiltersOpen(!isFiltersOpen)} 
-          className="w-full flex justify-between items-center bg-dark-800 border-gray-700 text-white hover:bg-dark-700"
-        >
-          <span className="flex items-center">
-            <Filter className="h-5 w-5 mr-2 text-primary-500" />
-            Filtros
-          </span>
-          {isFiltersOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-        </Button>
-      </div>
-
-      <div className={`${isFiltersOpen ? 'block' : 'hidden'} lg:block space-y-6`}>
+      <div className={`${isOpen ? 'block' : 'hidden'} lg:block space-y-6`}>
         <AnimatedText>
           <Card className="bg-dark-800/50 border-gray-700">
             <CardHeader>
@@ -139,26 +138,48 @@ export function SearchFilters({ filters, setFilters }: SearchFiltersProps) {
                 </div>
               </AnimatedText>
 
-              {/* Cities */}
+              {/* Location Filter */}
               <AnimatedText delay={0.2}>
-                <div>
-                  <h3 className="font-semibold text-white mb-3 flex items-center">
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-white flex items-center">
                     <MapPin className="h-4 w-4 mr-2 text-primary-500" />
-                    Cidades
+                    Localização
                   </h3>
+                  
+                  {/* State Selection */}
                   <div className="space-y-2">
-                    {cities.map((city) => (
-                      <label key={city} className="flex items-center space-x-2 cursor-pointer">
-                        <input 
-                          type="checkbox" 
-                          className="rounded border-gray-600 bg-dark-700" 
-                          checked={filters.cities.includes(city)}
-                          onChange={() => toggleCity(city)}
-                        />
-                        <span className="text-sm text-gray-300">{city}</span>
-                      </label>
-                    ))}
+                    <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Estado</label>
+                    <select
+                      className="w-full bg-dark-700 border border-gray-600 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-primary-500"
+                      value={filters.state}
+                      onChange={(e) => handleStateChange(e.target.value)}
+                    >
+                      <option value="">Selecione um estado</option>
+                      {Object.keys(locations).map((state) => (
+                        <option key={state} value={state}>{state}</option>
+                      ))}
+                    </select>
                   </div>
+
+                  {/* City Selection */}
+                  {filters.state && (
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium text-gray-400 uppercase tracking-wider">Cidades</label>
+                      <div className="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                        {availableCities.map((city) => (
+                          <label key={city} className="flex items-center space-x-2 cursor-pointer hover:bg-dark-700 p-1 rounded transition-colors">
+                            <input 
+                              type="checkbox" 
+                              className="rounded border-gray-600 bg-dark-800 text-primary-500 focus:ring-primary-500 focus:ring-offset-dark-800" 
+                              checked={filters.cities.includes(city)}
+                              onChange={() => toggleCity(city)}
+                            />
+                            <span className="text-sm text-gray-300">{city}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </AnimatedText>
 

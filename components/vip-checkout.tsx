@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Button } from "@/components/ui/button";
 import { CheckCircle, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 const plans = [
   {
@@ -48,6 +49,32 @@ const plans = [
 
 export function VipCheckout() {
   const [selectedPlan, setSelectedPlan] = useState("VIP Anual");
+  const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  const handleCheckout = (planName: string) => {
+    setLoadingPlan(planName);
+
+    const checkoutUrls: Record<string, string | undefined> = {
+      "VIP Mensal": process.env.NEXT_PUBLIC_CHECKOUT_URL_VIP_MENSAL,
+      "VIP Anual": process.env.NEXT_PUBLIC_CHECKOUT_URL_VIP_ANUAL,
+      "DIAMOND Club": process.env.NEXT_PUBLIC_CHECKOUT_URL_VIP_DIAMOND,
+    };
+
+    const url = checkoutUrls[planName];
+
+    if (!url) {
+      toast({
+        title: "Pagamento não configurado",
+        description: "Defina a URL de checkout deste plano nas variáveis de ambiente.",
+        variant: "destructive",
+      });
+      setLoadingPlan(null);
+      return;
+    }
+
+    window.location.href = url;
+  };
 
   return (
     <section className="bg-dark-950 py-20">
@@ -100,8 +127,10 @@ export function VipCheckout() {
                       ? "bg-primary-600 hover:bg-primary-700"
                       : "bg-gray-700 hover:bg-gray-600"
                   )}
+                  disabled={loadingPlan !== null}
+                  onClick={() => handleCheckout(plan.name)}
                 >
-                  Selecionar Plano
+                  {loadingPlan === plan.name ? "Redirecionando..." : "Assinar agora"}
                 </Button>
               </CardFooter>
             </Card>

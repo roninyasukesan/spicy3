@@ -13,7 +13,7 @@ const fetiches = [
   "Viagens", "Jantares", "Eventos", "Acompanhante"
 ];
 
-const locations = {
+const locations: Record<string, Record<string, string[]>> = {
   'AC': { 'Rio Branco': ['Centro', 'Bosque'] },
   'AL': { 'Maceió': ['Ponta Verde', 'Jatiúca'] },
   'AP': { 'Macapá': ['Central', 'Santa Rita'] },

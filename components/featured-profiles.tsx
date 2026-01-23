@@ -3,7 +3,9 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { MapPin, Star, Eye, Flame, Shield } from "lucide-react"
+import { MapPin, Star, Eye, Flame, Shield, Heart } from "lucide-react"
+import { useFavorites } from "@/lib/favorites"
+import { cn } from "@/lib/utils"
 
 interface Profile {
   id: string;
@@ -18,6 +20,8 @@ interface Profile {
 const featuredProfiles: Profile[] = [];
 
 export function FeaturedProfiles() {
+  const { isFavorite, toggle } = useFavorites();
+
   return (
     <section className="py-16">
       <div className="container mx-auto px-4">
@@ -57,13 +61,13 @@ export function FeaturedProfiles() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="absolute top-3 right-3 h-8 w-8 p-0 bg-black/50 hover:bg-black/70"
+                    className="absolute top-3 right-3 h-8 w-8 p-0 bg-black/50 hover:bg-black/70 rounded-full"
                     onClick={(e) => {
                       e.stopPropagation()
-                      // Handle favorite logic
+                      toggle(profile.id)
                     }}
                   >
-                    <Flame className="h-4 w-4" />
+                    <Heart className={cn("h-5 w-5 transition-colors", isFavorite(profile.id) ? "fill-red-500 text-red-500" : "text-white")} />
                   </Button>
                 </div>
 

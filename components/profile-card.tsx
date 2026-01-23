@@ -8,22 +8,54 @@ import { Star, Shield, Eye, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Model } from "./model-details-modal";
 import Image from "next/image";
+import { useFavorites } from "@/lib/favorites";
+import { useEffect, useState } from "react";
 
 interface ProfileCardProps {
   profile: Model;
   isLoggedIn: boolean;
   onDetailsClick?: (model: Model) => void;
+  onStoryClick?: (model: Model) => void;
 }
 
-export function ProfileCard({ profile, isLoggedIn, onDetailsClick }: ProfileCardProps) {
+export function ProfileCard({ profile, isLoggedIn, onDetailsClick, onStoryClick }: ProfileCardProps) {
+  const { isFavorite, toggle } = useFavorites();
+  // Local state for immediate UI feedback (optimistic)
+  const [liked, setLiked] = useState(false);
+  
+  const hasStories = profile.stories && profile.stories.length > 0;
+
+  // Sync with global state on mount and updates
+  useEffect(() => {
+    setLiked(isFavorite(profile.id));
+  }, [profile.id, isFavorite]);
+
   const handleDetailsClick = () => {
     if (onDetailsClick) {
       onDetailsClick(profile);
     }
   };
+  
+  const handleStoryClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (hasStories && onStoryClick) {
+      onStoryClick(profile);
+    } else {
+      handleDetailsClick();
+    }
+  };
+
+  const handleToggleFavorite = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    toggle(profile.id);
+  };
 
   return (
-    <Card className="bg-dark-800/60 border-gray-700/50 rounded-xl overflow-hidden group transform hover:-translate-y-2 transition-transform duration-300 shadow-lg hover:shadow-primary-500/20">
+    <Card className={cn(
+      "bg-dark-800/60 border-gray-700/50 rounded-xl overflow-hidden group transform hover:-translate-y-2 transition-transform duration-300 shadow-lg hover:shadow-primary-500/20",
+      hasStories && "ring-2 ring-offset-2 ring-offset-dark-950 ring-pink-500"
+    )}>
       <CardContent className="p-0">
         <div className="relative aspect-[3/4] overflow-hidden">
           <div
@@ -31,7 +63,7 @@ export function ProfileCard({ profile, isLoggedIn, onDetailsClick }: ProfileCard
               "w-full h-full transition-transform duration-500 group-hover:scale-110 cursor-pointer",
               { "blur-lg": !isLoggedIn }
             )}
-            onClick={handleDetailsClick}
+            onClick={handleStoryClick}
           >
             <Image
               src={profile.imageUrl}
@@ -41,6 +73,9 @@ export function ProfileCard({ profile, isLoggedIn, onDetailsClick }: ProfileCard
               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
             />
           </div>
+          {hasStories && (
+             <div className="absolute inset-0 pointer-events-none border-4 border-pink-500/50 z-10" />
+          )}
           {!isLoggedIn && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 pointer-events-none">
               <Eye className="h-10 w-10 text-white mb-2" />
@@ -58,8 +93,13 @@ export function ProfileCard({ profile, isLoggedIn, onDetailsClick }: ProfileCard
             )}
             {/* Online status would need to be in Model type or handled differently */}
           </div>
-          <Button size="icon" variant="ghost" className="absolute top-2 right-2 h-9 w-9 bg-black/40 hover:bg-black/70 rounded-full">
-            <Heart className="h-5 w-5 text-white" />
+          <Button 
+            size="icon" 
+            variant="ghost" 
+            className="absolute top-2 right-2 h-9 w-9 bg-black/40 hover:bg-black/70 rounded-full transition-colors"
+            onClick={handleToggleFavorite}
+          >
+            <Heart className={cn("h-5 w-5 transition-colors", liked ? "fill-red-500 text-red-500" : "text-white")} />
           </Button>
         </div>
         <div className="p-4">
