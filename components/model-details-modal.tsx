@@ -113,7 +113,7 @@ export function ModelDetailsModal({ model, isOpen, onClose }: ModelDetailsModalP
     }
 
     // User has access, navigate to chat
-    router.push(`/dashboard/chat?modelId=${model.id}`);
+    router.push(`/dashboard/chat?contactId=${model.id}`);
   };
 
   const handleVideoCall = () => {

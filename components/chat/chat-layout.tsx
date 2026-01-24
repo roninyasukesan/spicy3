@@ -20,7 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 export function ChatLayout({ mode = "full" }: { mode?: "full" | "floating" }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialContactId = searchParams.get("contactId");
+  const initialContactId = searchParams.get("contactId") ?? searchParams.get("modelId");
   const { toast } = useToast();
   
   const [currentUser, setCurrentUser] = useState<any>(null);

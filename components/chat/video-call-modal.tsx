@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -30,133 +30,32 @@ export function VideoCallModal({ currentUser, activeContact, isOpen, onClose, is
   const signaling = useRef<BroadcastChannel | null>(null);
   const localStream = useRef<MediaStream | null>(null);
 
-  // Inicializar canal de sinalização
-  useEffect(() => {
-    signaling.current = new BroadcastChannel("spicy_signaling");
-    
-    signaling.current.onmessage = async (event) => {
-      const data = event.data;
-      
-      // Ignorar mensagens minhas
-      if (data.sender === currentUser.email) return;
-      
-      // Ignorar mensagens que não são para mim
-      if (data.target !== currentUser.email) return;
-
-      console.log("Sinalização recebida:", data.type);
-
-      try {
-        if (data.type === "answer" && status === "calling") {
-          if (peerConnection.current) {
-            await peerConnection.current.setRemoteDescription(new RTCSessionDescription(data.sdp));
-          }
-        } else if (data.type === "candidate" && (status === "calling" || status === "connected")) {
-          if (peerConnection.current && data.candidate) {
-            await peerConnection.current.addIceCandidate(new RTCIceCandidate(data.candidate));
-          }
-        } else if (data.type === "end_call") {
-          endCall(false);
-        }
-      } catch (err) {
-        console.error("Erro na sinalização:", err);
-      }
-    };
-
-    return () => {
-      signaling.current?.close();
-    };
-  }, [currentUser.email, status]);
-
-  // Efeito para iniciar chamada se for o caller
-  useEffect(() => {
-    if (isOpen && !isIncoming && status === "idle") {
-      startCall();
-    }
-  }, [isOpen, isIncoming]);
-
-  const startCall = async () => {
-    if (!activeContact) return;
-    setStatus("calling");
-    
-    try {
-      const constraints = {
-        audio: true,
-        video: mode === "video"
-      };
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      localStream.current = stream;
-      if (localVideoRef.current && mode === "video") localVideoRef.current.srcObject = stream;
-
-      createPeerConnection();
-
-      // Adicionar tracks
-      stream.getTracks().forEach(track => {
-        if (localStream.current && peerConnection.current) {
-          peerConnection.current.addTrack(track, localStream.current);
-        }
-      });
-
-      // Criar oferta
-      const offer = await peerConnection.current!.createOffer();
-      await peerConnection.current!.setLocalDescription(offer);
-
-      // Enviar oferta
+  const endCall = useCallback((notify = true) => {
+    if (notify && (status === "calling" || status === "connected")) {
       signaling.current?.postMessage({
-        type: "offer",
+        type: "end_call",
         sender: currentUser.email,
-        senderName: currentUser.name,
-        senderImage: currentUser.photo,
-        target: activeContact.id,
-        sdp: offer
+        target: isIncoming ? incomingCallData?.sender : activeContact?.id
       });
-
-    } catch (err) {
-      console.error("Erro ao iniciar chamada:", err);
-      alert("Não foi possível acessar câmera/microfone.");
-      endCall();
     }
-  };
 
-  const acceptCall = async () => {
-    if (!incomingCallData) return;
-    setStatus("connected");
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      localStream.current = stream;
-      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
-
-      createPeerConnection();
-
-      // Adicionar tracks
-      stream.getTracks().forEach(track => {
-        if (localStream.current && peerConnection.current) {
-          peerConnection.current.addTrack(track, localStream.current);
-        }
-      });
-
-      // Configurar remoto
-      await peerConnection.current!.setRemoteDescription(new RTCSessionDescription(incomingCallData.sdp));
-
-      // Criar resposta
-      const answer = await peerConnection.current!.createAnswer();
-      await peerConnection.current!.setLocalDescription(answer);
-
-      // Enviar resposta
-      signaling.current?.postMessage({
-        type: "answer",
-        sender: currentUser.email,
-        target: incomingCallData.sender,
-        sdp: answer
-      });
-
-    } catch (err) {
-      console.error("Erro ao aceitar chamada:", err);
-      endCall();
+    if (localStream.current) {
+      localStream.current.getTracks().forEach(track => track.stop());
     }
-  };
+    if (peerConnection.current) {
+      peerConnection.current.close();
+    }
 
-  const createPeerConnection = () => {
+    localStream.current = null;
+    peerConnection.current = null;
+    setStatus("ended");
+
+    setTimeout(() => {
+      onClose();
+    }, 1000);
+  }, [status, currentUser.email, isIncoming, incomingCallData?.sender, activeContact?.id, onClose]);
+
+  const createPeerConnection = useCallback(() => {
     const pc = new RTCPeerConnection({
       iceServers: [
         { urls: "stun:stun.l.google.com:19302" } // Servidor STUN público do Google
@@ -190,33 +89,121 @@ export function VideoCallModal({ currentUser, activeContact, isOpen, onClose, is
     };
 
     peerConnection.current = pc;
-  };
+  }, [endCall, currentUser.email, isIncoming, incomingCallData?.sender, activeContact?.id]);
 
-  const endCall = (notify = true) => {
-    if (notify && (status === "calling" || status === "connected")) {
-      signaling.current?.postMessage({
-        type: "end_call",
-        sender: currentUser.email,
-        target: isIncoming ? incomingCallData?.sender : activeContact?.id
+  const startCall = useCallback(async () => {
+    if (!activeContact) return;
+    setStatus("calling");
+
+    try {
+      const constraints = {
+        audio: true,
+        video: mode === "video"
+      };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      localStream.current = stream;
+      if (localVideoRef.current && mode === "video") localVideoRef.current.srcObject = stream;
+
+      createPeerConnection();
+
+      stream.getTracks().forEach(track => {
+        if (localStream.current && peerConnection.current) {
+          peerConnection.current.addTrack(track, localStream.current);
+        }
       });
-    }
 
-    // Limpar tudo
-    if (localStream.current) {
-      localStream.current.getTracks().forEach(track => track.stop());
+      const offer = await peerConnection.current!.createOffer();
+      await peerConnection.current!.setLocalDescription(offer);
+
+      signaling.current?.postMessage({
+        type: "offer",
+        sender: currentUser.email,
+        senderName: currentUser.name,
+        senderImage: currentUser.photo,
+        target: activeContact.id,
+        sdp: offer
+      });
+
+    } catch (err) {
+      console.error("Erro ao iniciar chamada:", err);
+      alert("Não foi possível acessar câmera/microfone.");
+      endCall();
     }
-    if (peerConnection.current) {
-      peerConnection.current.close();
+  }, [activeContact, currentUser.email, currentUser.name, currentUser.photo, mode, createPeerConnection, endCall]);
+
+  const acceptCall = useCallback(async () => {
+    if (!incomingCallData) return;
+    setStatus("connected");
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localStream.current = stream;
+      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+
+      createPeerConnection();
+
+      stream.getTracks().forEach(track => {
+        if (localStream.current && peerConnection.current) {
+          peerConnection.current.addTrack(track, localStream.current);
+        }
+      });
+
+      await peerConnection.current!.setRemoteDescription(new RTCSessionDescription(incomingCallData.sdp));
+
+      const answer = await peerConnection.current!.createAnswer();
+      await peerConnection.current!.setLocalDescription(answer);
+
+      signaling.current?.postMessage({
+        type: "answer",
+        sender: currentUser.email,
+        target: incomingCallData.sender,
+        sdp: answer
+      });
+
+    } catch (err) {
+      console.error("Erro ao aceitar chamada:", err);
+      endCall();
     }
-    
-    localStream.current = null;
-    peerConnection.current = null;
-    setStatus("ended");
-    
-    setTimeout(() => {
-      onClose();
-    }, 1000);
-  };
+  }, [incomingCallData, currentUser.email, createPeerConnection, endCall]);
+
+  useEffect(() => {
+    signaling.current = new BroadcastChannel("spicy_signaling");
+
+    signaling.current.onmessage = async (event) => {
+      const data = event.data;
+
+      if (data.sender === currentUser.email) return;
+      if (data.target !== currentUser.email) return;
+
+      console.log("Sinalização recebida:", data.type);
+
+      try {
+        if (data.type === "answer" && status === "calling") {
+          if (peerConnection.current) {
+            await peerConnection.current.setRemoteDescription(new RTCSessionDescription(data.sdp));
+          }
+        } else if (data.type === "candidate" && (status === "calling" || status === "connected")) {
+          if (peerConnection.current && data.candidate) {
+            await peerConnection.current.addIceCandidate(new RTCIceCandidate(data.candidate));
+          }
+        } else if (data.type === "end_call") {
+          endCall(false);
+        }
+      } catch (err) {
+        console.error("Erro na sinalização:", err);
+      }
+    };
+
+    return () => {
+      signaling.current?.close();
+    };
+  }, [currentUser.email, status, endCall]);
+
+  useEffect(() => {
+    if (isOpen && !isIncoming && status === "idle") {
+      startCall();
+    }
+  }, [isOpen, isIncoming, status, startCall]);
 
   const toggleMic = () => {
     if (localStream.current) {

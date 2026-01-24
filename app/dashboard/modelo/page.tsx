@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { FETISH_CATEGORIES } from "@/lib/fetishes";
 import { PHYSICAL_CHARACTERISTICS, type PhysicalCharacteristics } from "@/lib/physical-characteristics";
 import { AudioPlayerWave } from "@/components/ui/audio-player-wave";
+import Image from "next/image";
 
 const SERVICES_LIST = ["Acompanhante", "Massagem", "Jantar", "Eventos", "Viagens", "Fetiches"];
 
@@ -299,7 +300,7 @@ export default function ModeloDashboardPage() {
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                     {profile.photos?.map((photo, index) => (
                       <div key={index} className="relative aspect-square rounded-md overflow-hidden border border-gray-700 group">
-                        <img src={photo} alt={`Foto ${index}`} className="w-full h-full object-cover" />
+                        <Image src={photo} alt={`Foto ${index + 1}`} fill sizes="(max-width: 768px) 50vw, 25vw" className="object-cover" />
                         <button 
                           onClick={() => removePhoto(index)}
                           className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -329,7 +330,7 @@ export default function ModeloDashboardPage() {
                     {profile.stories?.map((story) => (
                       <div key={story.id} className="relative aspect-[9/16] rounded-md overflow-hidden border border-gray-700 group bg-black">
                         {story.mediaType === 'image' ? (
-                          <img src={story.mediaUrl} alt="Story" className="w-full h-full object-cover" />
+                          <Image src={story.mediaUrl} alt="Story" fill sizes="(max-width: 768px) 50vw, 25vw" className="object-cover" />
                         ) : (
                           <video src={story.mediaUrl} className="w-full h-full object-cover" />
                         )}
@@ -537,7 +538,7 @@ export default function ModeloDashboardPage() {
                       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                         {profile.photos.map((photo, index) => (
                           <div key={index} className="relative aspect-[3/4] rounded-lg overflow-hidden border border-gray-700 group shadow-sm hover:shadow-md transition-all">
-                            <img src={photo} alt={`Foto ${index}`} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                            <Image src={photo} alt={`Foto ${index + 1}`} fill sizes="(max-width: 768px) 50vw, 20vw" className="object-cover transition-transform duration-300 group-hover:scale-105" />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                             <Button
                               variant="destructive"
