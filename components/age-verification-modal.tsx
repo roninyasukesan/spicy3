@@ -22,9 +22,7 @@ export function AgeVerificationModal() {
         //   return
         // }
 
-        // 2. Check Session Storage (Always check this now)
-        // Using v8 key to force fresh check
-        const verified = sessionStorage.getItem("age-verified-v8")
+        const verified = sessionStorage.getItem("age-verified-v9")
         
         if (!verified) {
           console.log("AgeVerification: User not verified, showing modal.")
@@ -48,7 +46,7 @@ export function AgeVerificationModal() {
   }, [])
 
   const handleConfirm = () => {
-    sessionStorage.setItem("age-verified-v8", "true")
+    sessionStorage.setItem("age-verified-v9", "true")
     setIsVisible(false)
   }
 

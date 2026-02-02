@@ -9,7 +9,10 @@ import { cn } from "@/lib/utils";
 import { Model } from "./model-details-modal";
 import Image from "next/image";
 import { useFavorites } from "@/lib/favorites";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { supabase } from "@/lib/supabase";
+import { useToast } from "@/hooks/use-toast";
+import { localGetUser } from "@/lib/local-auth";
 
 interface ProfileCardProps {
   profile: Model;
@@ -20,10 +23,80 @@ interface ProfileCardProps {
 
 export function ProfileCard({ profile, isLoggedIn, onDetailsClick, onStoryClick }: ProfileCardProps) {
   const { isFavorite, toggle } = useFavorites();
-  // Local state for immediate UI feedback (optimistic)
   const [liked, setLiked] = useState(false);
+  const bcRef = useRef<BroadcastChannel | null>(null);
+  const { toast } = useToast();
+  
+  function hasSupabaseConfig() {
+    return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  }
   
   const hasStories = profile.stories && profile.stories.length > 0;
+
+  // Initialize BroadcastChannel for cross-user heart actions
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      bcRef.current = new BroadcastChannel("spicy_heart_actions");
+      
+      bcRef.current.onmessage = (event) => {
+        const { type, profileId, action } = event.data;
+        
+        if (type === 'heart_action' && profileId === profile.id) {
+          if (action === 'liked') {
+            setLiked(true);
+          } else if (action === 'unliked') {
+            setLiked(false);
+          }
+        }
+      };
+    }
+
+    return () => {
+      if (bcRef.current) {
+        bcRef.current.close();
+      }
+    };
+  }, [profile.id, toast]);
+
+  useEffect(() => {
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    if (hasSupabaseConfig()) {
+      channel = supabase
+        .channel(`favorites:${profile.id}`)
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "favorites", filter: `model_id=eq.${profile.id}` },
+          (payload) => {
+            const user = localGetUser();
+            if (user?.role === "modelo") {
+              toast({
+                title: "Novo favorito",
+                description: "Seu perfil foi favoritado.",
+              });
+            }
+          }
+        )
+        .on(
+          "postgres_changes",
+          { event: "DELETE", schema: "public", table: "favorites", filter: `model_id=eq.${profile.id}` },
+          (payload) => {
+            const user = localGetUser();
+            if (user?.role === "modelo") {
+              toast({
+                title: "Favorito removido",
+                description: "Seu perfil foi removido das favoritas.",
+              });
+            }
+          }
+        )
+        .subscribe();
+    }
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [profile.id, toast]);
 
   // Sync with global state on mount and updates
   useEffect(() => {
@@ -48,7 +121,22 @@ export function ProfileCard({ profile, isLoggedIn, onDetailsClick, onStoryClick 
   const handleToggleFavorite = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
+    
+    const newLikedState = !liked;
+    setLiked(newLikedState); // Optimistic update
+    
+    // Toggle in global favorites state
     toggle(profile.id);
+    
+    // Send cross-user notification via BroadcastChannel
+    if (bcRef.current) {
+      bcRef.current.postMessage({
+        type: 'heart_action',
+        profileId: profile.id,
+        action: newLikedState ? 'liked' : 'unliked',
+        timestamp: Date.now()
+      });
+    }
   };
 
   return (

@@ -20,33 +20,49 @@ export function SubscriptionModal({ isOpen, onClose, modelName, modelId, onSucce
 
   const handleSubscribe = async () => {
     setLoading(true)
-    
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false)
-      
-      // Update local user state (Mock)
+    try {
       const user = localGetUser()
-      if (user) {
-        const existingIds = (user as { subscribedModelIds?: string[] }).subscribedModelIds ?? []
-        const updatedUser = {
-          ...user,
-          subscribedModelIds: [...existingIds, modelId]
-        }
-        if (typeof window !== "undefined") {
-            localStorage.setItem("spicy-auth-user", JSON.stringify(updatedUser))
-            // Dispatch event to update UI
-            window.dispatchEvent(new Event("spicy-auth-change"))
+      const useAsaas = process.env.NEXT_PUBLIC_ASAAS_ENABLED === "true"
+      if (useAsaas && user?.email) {
+        const res = await fetch("/api/payments/asaas/subscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: user.email,
+            name: user.name,
+            description: `Assinatura VIP para ${modelName}`,
+            amount: 29.9,
+            cycle: "MONTHLY",
+          }),
+        })
+        const data = await res.json()
+        if (!res.ok || !data.ok) {
+          throw new Error("Falha ao criar assinatura")
         }
       }
-
+      const existingIds = (user as { subscribedModelIds?: string[] })?.subscribedModelIds ?? []
+      const updatedUser = user
+        ? { ...user, subscribedModelIds: [...existingIds, modelId] }
+        : null
+      if (updatedUser && typeof window !== "undefined") {
+        localStorage.setItem("spicy-auth-user", JSON.stringify(updatedUser))
+        window.dispatchEvent(new Event("spicy-auth-change"))
+      }
       toast({
         title: "Assinatura realizada!",
         description: `Você agora tem acesso ao conteúdo de ${modelName}.`,
       })
       onSuccess()
       onClose()
-    }, 1500)
+    } catch (e: any) {
+      toast({
+        title: "Erro",
+        description: e?.message || "Não foi possível processar a assinatura.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

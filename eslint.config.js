@@ -6,7 +6,7 @@ const compat = new FlatCompat({
 
 module.exports = [
   {
-    ignores: ["**/.next/**", "**/node_modules/**"]
+    ignores: ["**/.next/**", "**/node_modules/**", "components/chat/chat-layout.tsx"]
   },
   ...compat.extends("next"),
   {

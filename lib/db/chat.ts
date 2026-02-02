@@ -14,12 +14,13 @@ function mapRowToMessage(row: any): Message {
     senderId: row.sender_id,
     receiverId: 'unknown', // We need to infer this from context or fetch it
     content: row.content,
+    encryptedData: row.encrypted_data,
     timestamp: new Date(row.created_at).getTime(),
     isRead: row.is_read
   }
 }
 
-async function getOrCreateConversationId(userId: string, otherId: string): Promise<string | null> {
+export async function getOrCreateConversationId(userId: string, otherId: string): Promise<string | null> {
   // Check if conversation exists
   // We check both directions (A-B or B-A)
   const { data: existing } = await supabase
@@ -237,7 +238,7 @@ export async function fetchConversationsDb(currentUserId: string): Promise<Conve
       participantId: otherId,
       participantName: name,
       participantImage: image,
-      lastMessage: lastMsg.content,
+      lastMessage: lastMsg.content || (lastMsg.encrypted_data ? "Mensagem protegida" : ""),
       lastMessageTime: new Date(lastMsg.created_at).getTime(),
       unreadCount: unreadCount || 0
     })

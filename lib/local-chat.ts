@@ -1,10 +1,21 @@
+import { supabase } from "./supabase";
+import { getOrCreateKeyPair, importPublicKey, deriveSharedKey, encryptMessage, getLocalPublicKey } from "./crypto";
+import { getModelProfile, getUsers, getAllLocalProfiles, localGetUser } from './local-auth';
+
 export type Message = {
   id: string;
   senderId: string;
   receiverId: string;
-  content: string;
+  content?: string | null;
+  encryptedData?: string | null;
   timestamp: number;
   isRead: boolean;
+};
+
+export type MessageLimit = {
+  contactId: string;
+  count: number;
+  date: string; // YYYY-MM-DD
 };
 
 export type Conversation = {
@@ -30,14 +41,48 @@ function notifyChatUpdate() {
   window.dispatchEvent(new Event('storage'));
 }
 
-// Helper to get current user (mocked or from local-auth)
-import { localGetUser, getModelProfile, getUsers, getAllLocalProfiles } from './local-auth';
+function hasSupabaseConfig() {
+  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+}
 
 function generateId() {
   return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 }
 
-export function sendMessage(senderId: string, receiverId: string, content: string): Message {
+async function upsertUserKey(userId: string, publicKey: string) {
+  if (!hasSupabaseConfig()) return;
+  const { data } = await supabase.auth.getSession();
+  if (!data.session) return;
+  await supabase
+    .from("user_keys")
+    .upsert({ user_id: userId, public_key: publicKey }, { onConflict: "user_id" });
+}
+
+async function fetchUserPublicKey(userId: string): Promise<string | null> {
+  if (!hasSupabaseConfig()) return getLocalPublicKey(userId);
+  const { data } = await supabase
+    .from("user_keys")
+    .select("public_key")
+    .eq("user_id", userId)
+    .maybeSingle();
+  return data?.public_key || getLocalPublicKey(userId);
+}
+
+export async function prepareEncryptedMessage(senderId: string, receiverId: string, content: string): Promise<string | null> {
+  if (typeof window === "undefined") return null;
+  const normalizedSenderId = senderId.toLowerCase();
+  const normalizedReceiverId = receiverId.toLowerCase();
+  const keys = await getOrCreateKeyPair(normalizedSenderId);
+  await upsertUserKey(normalizedSenderId, keys.publicKey);
+  const recipientKey = await fetchUserPublicKey(normalizedReceiverId);
+  if (!recipientKey) return null;
+  const recipientPublicKey = await importPublicKey(recipientKey);
+  const sharedKey = await deriveSharedKey(keys.privateKey, recipientPublicKey);
+  const payload = await encryptMessage(sharedKey, content);
+  return JSON.stringify(payload);
+}
+
+export function sendMessage(senderId: string, receiverId: string, encryptedData: string | null): Message {
   if (typeof window === 'undefined') return {} as Message;
 
   // Normalize IDs to lowercase to avoid case mismatch
@@ -51,7 +96,8 @@ export function sendMessage(senderId: string, receiverId: string, content: strin
     id: generateId(),
     senderId: normalizedSenderId,
     receiverId: normalizedReceiverId,
-    content,
+    content: null,
+    encryptedData: encryptedData || null,
     timestamp: Date.now(),
     isRead: false,
   };
@@ -148,7 +194,7 @@ export function getConversations(currentUserId: string): Conversation[] {
       participantId: contactId,
       participantName: name,
       participantImage: image,
-      lastMessage: lastMsg.content,
+      lastMessage: lastMsg.content || (lastMsg.encryptedData ? "Mensagem protegida" : ""),
       lastMessageTime: lastMsg.timestamp,
       unreadCount: (lastMsg.senderId !== currentUserId && !lastMsg.isRead) ? 1 : 0
     };
@@ -174,4 +220,165 @@ export function markAsRead(userId: string, contactId: string) {
     localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
     notifyChatUpdate();
   }
+}
+
+// ==================== LIMITE ANTI-SPAM ====================
+
+const MESSAGE_LIMITS_KEY = 'spicy_message_limits';
+const FREE_PLAN_DAILY_LIMIT = 10;
+
+/**
+ * Obtém a data atual no formato YYYY-MM-DD
+ */
+function getTodayString(): string {
+  const now = new Date();
+  return now.toISOString().split('T')[0];
+}
+
+/**
+ * Obtém os limites de mensagem do localStorage
+ */
+function getMessageLimits(userId: string): MessageLimit[] {
+  if (typeof window === 'undefined') return [];
+  
+  const key = `${MESSAGE_LIMITS_KEY}_${userId.toLowerCase()}`;
+  const raw = localStorage.getItem(key);
+  if (!raw) return [];
+  
+  try {
+    return JSON.parse(raw) as MessageLimit[];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Salva os limites de mensagem no localStorage
+ */
+function saveMessageLimits(userId: string, limits: MessageLimit[]) {
+  if (typeof window === 'undefined') return;
+  
+  const key = `${MESSAGE_LIMITS_KEY}_${userId.toLowerCase()}`;
+  localStorage.setItem(key, JSON.stringify(limits));
+}
+
+/**
+ * Incrementa o contador de mensagens para um contato específico
+ */
+function incrementMessageCount(userId: string, contactId: string) {
+  const today = getTodayString();
+  const limits = getMessageLimits(userId);
+  
+  const normalizedContactId = contactId.toLowerCase();
+  const existingLimit = limits.find(l => l.contactId === normalizedContactId && l.date === today);
+  
+  if (existingLimit) {
+    existingLimit.count++;
+  } else {
+    // Remove limites de dias anteriores para este contato
+    const filteredLimits = limits.filter(l => l.contactId !== normalizedContactId || l.date === today);
+    filteredLimits.push({
+      contactId: normalizedContactId,
+      count: 1,
+      date: today
+    });
+    saveMessageLimits(userId, filteredLimits);
+    return;
+  }
+  
+  saveMessageLimits(userId, limits);
+}
+
+/**
+ * Obtém o número de mensagens enviadas hoje para um contato
+ */
+function getMessagesCountToday(userId: string, contactId: string): number {
+  const today = getTodayString();
+  const limits = getMessageLimits(userId);
+  
+  const normalizedContactId = contactId.toLowerCase();
+  const limit = limits.find(l => l.contactId === normalizedContactId && l.date === today);
+  
+  return limit ? limit.count : 0;
+}
+
+/**
+ * Verifica se o usuário pode enviar mais mensagens para um contato
+ * @returns { canSend: boolean, remaining: number, limit: number }
+ */
+export function canSendMessage(userId: string, contactId: string): { 
+  canSend: boolean; 
+  remaining: number; 
+  limit: number;
+  isVip: boolean;
+} {
+  const user = localGetUser();
+  
+  // Usuários VIP não têm limite
+  if (user?.plan === "vip") {
+    return {
+      canSend: true,
+      remaining: Infinity,
+      limit: Infinity,
+      isVip: true
+    };
+  }
+  
+  // Usuários free têm limite diário
+  const sentToday = getMessagesCountToday(userId, contactId);
+  const remaining = Math.max(0, FREE_PLAN_DAILY_LIMIT - sentToday);
+  
+  return {
+    canSend: remaining > 0,
+    remaining,
+    limit: FREE_PLAN_DAILY_LIMIT,
+    isVip: false
+  };
+}
+
+/**
+ * Obtém o número de mensagens restantes para hoje
+ */
+export function getRemainingMessages(userId: string, contactId: string): number {
+  const result = canSendMessage(userId, contactId);
+  return result.remaining;
+}
+
+/**
+ * Versão estendida do sendMessage que respeita os limites
+ */
+export function sendMessageWithLimit(senderId: string, receiverId: string, encryptedData: string | null): {
+  success: boolean;
+  message?: Message;
+  error?: string;
+  limitInfo?: { remaining: number; limit: number };
+} {
+  // Verifica se pode enviar
+  const limitCheck = canSendMessage(senderId, receiverId);
+  
+  if (!limitCheck.canSend) {
+    return {
+      success: false,
+      error: `Limite diário atingido. Você pode enviar apenas ${limitCheck.limit} mensagens por dia para cada contato no plano gratuito. Faça upgrade para VIP para mensagens ilimitadas.`,
+      limitInfo: {
+        remaining: limitCheck.remaining,
+        limit: limitCheck.limit
+      }
+    };
+  }
+  
+  // Envia a mensagem
+  const message = sendMessage(senderId, receiverId, encryptedData);
+  
+  // Incrementa o contador
+  incrementMessageCount(senderId, receiverId);
+  
+  return {
+    success: true,
+    message,
+    limitInfo: {
+      remaining: limitCheck.remaining - 1,
+      limit: limitCheck.limit
+    }
+  };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { ChatLayout } from "@/components/chat/chat-layout";
+import ChatLayoutLite from "@/components/chat/chat-layout-lite";
 import { Header } from "@/components/header";
 
 export default function ChatPage() {
@@ -10,7 +10,7 @@ export default function ChatPage() {
         <Header />
       </div>
       <div className="flex-1 overflow-hidden w-full max-w-7xl mx-auto p-0 md:p-4">
-        <ChatLayout />
+        <ChatLayoutLite />
       </div>
     </div>
   );

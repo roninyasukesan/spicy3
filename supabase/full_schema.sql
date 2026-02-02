@@ -65,6 +65,24 @@ create policy "Users can update own profile"
   on profiles for update
   using (auth.uid() = id);
 
+create table if not exists user_keys (
+  user_id uuid primary key references profiles(id) on delete cascade,
+  public_key text not null,
+  created_at timestamp with time zone default now(),
+  updated_at timestamp with time zone default now()
+);
+
+alter table user_keys enable row level security;
+create policy "Public user keys are viewable by everyone"
+  on user_keys for select
+  using (true);
+create policy "Users can insert own key"
+  on user_keys for insert
+  with check (auth.uid() = user_id);
+create policy "Users can update own key"
+  on user_keys for update
+  using (auth.uid() = user_id);
+
 -- 2. MEDIA GALLERY (Photos/Videos)
 create table if not exists media_gallery (
   id uuid primary key default gen_random_uuid(),
@@ -158,7 +176,8 @@ create table if not exists messages (
   id uuid primary key default gen_random_uuid(),
   conversation_id uuid references conversations(id) on delete cascade not null,
   sender_id uuid references profiles(id) not null,
-  content text not null,
+  content text,
+  encrypted_data text,
   is_read boolean default false,
   created_at timestamp with time zone default now()
 );

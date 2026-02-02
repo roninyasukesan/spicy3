@@ -5,7 +5,6 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { localGetUser, getModelProfile, getUsers } from "@/lib/local-auth";
 import { type Conversation, type Message } from "@/lib/local-chat";
 import { fetchConversationsService, fetchMessagesService, sendMessageService, markAsReadService } from "@/lib/chat-service";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -16,8 +15,13 @@ import { cn } from "@/lib/utils";
 import { VideoCallModal } from "./video-call-modal";
 import { SubscriptionModal } from "@/components/subscription-modal";
 import { useToast } from "@/hooks/use-toast";
+import { ChatMessages } from "./chat-messages";
+import { supabase } from "@/lib/supabase";
+import { getOrCreateKeyPair } from "@/lib/crypto";
+import { upsertUserPublicKey } from "@/lib/db/messages";
+import { getOrCreateConversationId } from "@/lib/db/chat";
 
-export function ChatLayout({ mode = "full" }: { mode?: "full" | "floating" }) {
+export default function ChatLayout({ mode = "full" }: { mode?: "full" | "floating" }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialContactId = searchParams.get("contactId") ?? searchParams.get("modelId");
@@ -35,6 +39,7 @@ export function ChatLayout({ mode = "full" }: { mode?: "full" | "floating" }) {
   const [isCallModalOpen, setIsCallModalOpen] = useState(false);
   const [callMode, setCallMode] = useState<"video" | "audio">("video");
   const [incomingCall, setIncomingCall] = useState<any>(null);
+  const [isCallActive, setIsCallActive] = useState(false);
 
   // Listen for incoming calls
   useEffect(() => {
@@ -68,13 +73,13 @@ export function ChatLayout({ mode = "full" }: { mode?: "full" | "floating" }) {
       return;
     }
     setCurrentUser(user);
-    const userId = user.id || user.email;
+    const userId = (user.id || user.email).toLowerCase();
     loadConversations(userId);
     const handleAuthChange = () => {
       const nextUser = localGetUser();
       if (!nextUser) return;
       setCurrentUser(nextUser);
-      const nextId = nextUser.id || nextUser.email;
+      const nextId = (nextUser.id || nextUser.email).toLowerCase();
       loadConversations(nextId);
       if (activeConversationId) {
         loadMessages(nextId, activeConversationId);
@@ -110,7 +115,7 @@ export function ChatLayout({ mode = "full" }: { mode?: "full" | "floating" }) {
   // Poll for new messages (simulate real-time)
   useEffect(() => {
     if (!currentUser) return;
-    const userId = currentUser.id || currentUser.email;
+    const userId = (currentUser.id || currentUser.email).toLowerCase();
     const interval = setInterval(() => {
       loadConversations(userId);
       if (activeConversationId) {
@@ -123,7 +128,7 @@ export function ChatLayout({ mode = "full" }: { mode?: "full" | "floating" }) {
   // Load Messages when active conversation changes
   useEffect(() => {
     if (currentUser && activeConversationId) {
-      const userId = currentUser.id || currentUser.email;
+      const userId = (currentUser.id || currentUser.email).toLowerCase();
       loadMessages(userId, activeConversationId);
       markAsReadService(userId, activeConversationId);
       // Refresh conversations to update unread count
@@ -173,7 +178,7 @@ export function ChatLayout({ mode = "full" }: { mode?: "full" | "floating" }) {
       return;
     }
 
-    const userId = currentUser.id || currentUser.email;
+    const userId = (currentUser.id || currentUser.email).toLowerCase();
     try {
       await sendMessageService(userId, activeConversationId, newMessage);
       setNewMessage("");
@@ -216,6 +221,60 @@ export function ChatLayout({ mode = "full" }: { mode?: "full" | "floating" }) {
   const activeParticipant = activeConversationId ? resolveParticipant(activeConversationId) : null;
   const newParticipant = initialContactId ? resolveParticipant(initialContactId) : null;
   const hasChatAccess = currentUser?.role !== "cliente" || currentUser?.plan === "vip" || currentUser?.subscribedModelIds?.includes(activeConversationId || "");
+  const currentUserId = currentUser?.id || currentUser?.email;
+  const normalizedCurrentUserId = currentUserId ? currentUserId.toLowerCase() : null;
+
+  useEffect(() => {
+    if (!normalizedCurrentUserId) return;
+    const run = async () => {
+      const keys = await getOrCreateKeyPair(normalizedCurrentUserId);
+      await upsertUserPublicKey(normalizedCurrentUserId, keys.publicKey);
+    };
+    run();
+  }, [normalizedCurrentUserId]);
+
+  useEffect(() => {
+    if (!normalizedCurrentUserId || !activeConversationId) return;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let active = true;
+
+    const setup = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session || !active) return;
+      const conversationId = await getOrCreateConversationId(normalizedCurrentUserId, activeConversationId);
+      if (!conversationId || !active) return;
+
+      channel = supabase
+        .channel(`messages:${conversationId}`)
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${conversationId}` },
+          (payload) => {
+            const row = payload.new as any;
+            const nextMessage: Message = {
+              id: row.id,
+              senderId: row.sender_id,
+              receiverId: row.sender_id === normalizedCurrentUserId ? activeConversationId : normalizedCurrentUserId,
+              content: row.content,
+              encryptedData: row.encrypted_data,
+              timestamp: new Date(row.created_at).getTime(),
+              isRead: row.is_read
+            };
+            setMessages(prev => prev.some(msg => msg.id === nextMessage.id) ? prev : [...prev, nextMessage]);
+          }
+        )
+        .subscribe();
+    };
+
+    setup();
+
+    return () => {
+      active = false;
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [normalizedCurrentUserId, activeConversationId]);
 
   const handleBack = () => {
     if (!currentUser) {
@@ -229,13 +288,68 @@ export function ChatLayout({ mode = "full" }: { mode?: "full" | "floating" }) {
     else router.push("/");
   };
 
-  if (!currentUser) return <div className="p-8 text-white">Carregando...</div>;
+  const isLoading = !currentUser;
 
   const isFloating = mode === "floating";
 
   return (
     <div className="flex h-full bg-dark-950 border border-gray-800 rounded-lg overflow-hidden relative">
-      {/* Sidebar - Conversations List */}
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-10">
+          <div className="text-white">Carregando...</div>
+        </div>
+      )}
+      
+      {isCallActive && (
+        <div className="absolute inset-0 z-50 bg-black/95 flex flex-col">
+          
+          <div className="flex items-center justify-between p-4 bg-black/50 border-b border-gray-800">
+            <div className="flex items-center gap-3">
+              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+              <div>
+                <h2 className="text-lg font-semibold text-white">
+                  {callMode === "video" ? "Chamada de Vídeo" : "Chamada de Áudio"}
+                </h2>
+                <p className="text-sm text-gray-300">
+                  {activeParticipant?.participantName || "Em chamada..."}
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => {
+                setIsCallActive(false);
+                setIsCallModalOpen(false);
+                setIncomingCall(null);
+              }}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              ✕ Fechar
+            </Button>
+          </div>
+          
+          
+          <div className="flex-1 flex items-center justify-center p-8">
+            <div className="w-full max-w-4xl h-full bg-gray-900 rounded-lg border border-gray-700 flex items-center justify-center">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Video className="w-8 h-8 text-gray-400" />
+                </div>
+                <p className="text-gray-400">Área da chamada de vídeo</p>
+                <p className="text-sm text-gray-500 mt-2">Chat disponível abaixo</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      
+      <div className={cn(
+        "flex h-full transition-all duration-300",
+        isCallActive ? "mt-0 h-1/3 border-t border-gray-800" : ""
+      )}>
+        
       <div className={cn(
         "bg-dark-900 flex flex-col h-full",
         !isFloating && "w-full md:w-80 border-r border-gray-800 shrink-0",
@@ -272,7 +386,7 @@ export function ChatLayout({ mode = "full" }: { mode?: "full" | "floating" }) {
               </div>
             )}
             
-            {/* If starting new chat that doesn't exist yet */}
+            
             {initialContactId && !conversations.find(c => c.participantId === initialContactId) && (
                <button
                onClick={() => setActiveConversationId(initialContactId)}
@@ -329,14 +443,14 @@ export function ChatLayout({ mode = "full" }: { mode?: "full" | "floating" }) {
         </ScrollArea>
       </div>
 
-      {/* Main Chat Area */}
+      
       <div className={cn(
         "flex-1 flex flex-col bg-dark-950 h-full min-w-0",
         !activeConversationId ? "hidden md:flex" : "flex"
       )}>
         {activeConversationId ? (
-          <>
-            {/* Chat Header */}
+          <div>
+            
             <div className="p-4 border-b border-gray-800 flex justify-between items-center bg-dark-900 shrink-0">
               <div className="flex items-center gap-3 overflow-hidden flex-1">
                 <Button 
@@ -389,7 +503,7 @@ export function ChatLayout({ mode = "full" }: { mode?: "full" | "floating" }) {
               </div>
             </div>
 
-            {/* Messages Area */}
+            
             <div className="flex-1 overflow-y-auto p-4 space-y-4 relative" ref={scrollRef}>
               {messages.length === 0 && (
                  <div className="text-center text-gray-500 mt-10">
@@ -397,25 +511,7 @@ export function ChatLayout({ mode = "full" }: { mode?: "full" | "floating" }) {
                    <p className="text-sm">Envie um "Olá" para começar.</p>
                  </div>
               )}
-              {messages.map((msg) => {
-                const isMe = msg.senderId === currentUser.email;
-                return (
-                  <div key={msg.id} className={cn("flex w-full", isMe ? "justify-end" : "justify-start")}>
-                    <div className={cn(
-                      "max-w-[85%] md:max-w-[70%] rounded-2xl p-3 text-sm shadow-sm overflow-hidden",
-                      isMe ? "bg-primary-600 text-white rounded-br-none" : "bg-dark-800 text-gray-200 rounded-bl-none"
-                    )}>
-                      <p className="whitespace-pre-wrap break-words leading-relaxed">{msg.content}</p>
-                      <p className={cn("text-[10px] mt-1 text-right", isMe ? "text-primary-200" : "text-gray-500")}>
-                        {new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                        {isMe && (
-                           <span className="ml-1">{msg.isRead ? "✓✓" : "✓"}</span>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
+              {normalizedCurrentUserId && <ChatMessages messages={messages} currentUserId={normalizedCurrentUserId} />}
               {!hasChatAccess && (
                 <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
                   <div className="text-center text-white space-y-2 px-6">
@@ -429,7 +525,7 @@ export function ChatLayout({ mode = "full" }: { mode?: "full" | "floating" }) {
               )}
             </div>
 
-            {/* Input Area */}
+            
             <div className="p-4 bg-dark-900 border-t border-gray-800">
               <form onSubmit={handleSendMessage} className="flex gap-2">
                 <Input 
@@ -444,7 +540,7 @@ export function ChatLayout({ mode = "full" }: { mode?: "full" | "floating" }) {
                 </Button>
               </form>
             </div>
-          </>
+          </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-gray-500 p-8">
             <div className="bg-dark-800 p-6 rounded-full mb-4">
@@ -458,30 +554,7 @@ export function ChatLayout({ mode = "full" }: { mode?: "full" | "floating" }) {
         )}
       </div>
       
-      {isCallModalOpen && currentUser && (
-        <VideoCallModal 
-          currentUser={currentUser}
-          activeContact={activeParticipant ? {
-            id: activeParticipant.participantId,
-            name: activeParticipant.participantName,
-            image: activeParticipant.participantImage
-          } : null}
-          isOpen={isCallModalOpen}
-          onClose={() => setIsCallModalOpen(false)}
-          isIncoming={!!incomingCall}
-          incomingCallData={incomingCall}
-          mode={callMode}
-        />
-      )}
-      {activeConversationId && (
-        <SubscriptionModal
-          isOpen={showSubscriptionModal}
-          onClose={() => setShowSubscriptionModal(false)}
-          modelName={activeParticipant?.participantName || activeConversationId}
-          modelId={activeConversationId}
-          onSuccess={() => setShowSubscriptionModal(false)}
-        />
-      )}
+      
     </div>
   );
 }

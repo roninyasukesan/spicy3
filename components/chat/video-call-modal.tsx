@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff, User } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -68,7 +68,7 @@ export function VideoCallModal({ currentUser, activeContact, isOpen, onClose, is
           type: "candidate",
           sender: currentUser.email,
           target: isIncoming ? incomingCallData?.sender : activeContact?.id,
-          candidate: event.candidate
+          candidate: event.candidate.toJSON()
         });
       }
     };
@@ -228,6 +228,7 @@ export function VideoCallModal({ currentUser, activeContact, isOpen, onClose, is
   return (
     <Dialog open={isOpen} onOpenChange={() => {}}>
       <DialogContent className="sm:max-w-[800px] h-[80vh] bg-black p-0 border-gray-800 overflow-hidden flex flex-col">
+        <DialogTitle className="sr-only">Chamada</DialogTitle>
         {/* Status Header */}
         <div className="absolute top-0 left-0 right-0 z-10 p-4 bg-gradient-to-b from-black/80 to-transparent">
           <div className="flex items-center justify-between text-white">

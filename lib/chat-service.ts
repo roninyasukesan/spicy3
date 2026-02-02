@@ -1,6 +1,7 @@
 
-import { Message, Conversation, getMessages, getConversations, sendMessage, markAsRead } from "./local-chat";
-import { fetchMessages as fetchMessagesDb, fetchConversationsDb, sendMessageDb, markAsReadDb } from "./db/chat";
+import { Message, Conversation, getMessages, getConversations, sendMessage, markAsRead, prepareEncryptedMessage } from "./local-chat";
+import { fetchConversationsDb } from "./db/chat";
+import { fetchMessagesDb, sendMessageDb, markAsReadDb } from "./db/messages";
 import { supabase } from "./supabase";
 
 function hasSupabaseConfig() {
@@ -34,11 +35,12 @@ export async function fetchMessagesService(userId: string, contactId: string): P
 }
 
 export async function sendMessageService(senderId: string, receiverId: string, content: string): Promise<Message | null> {
+  const encryptedData = await prepareEncryptedMessage(senderId, receiverId, content);
   const isDb = await isSupabaseSession();
   if (isDb) {
-    return sendMessageDb(senderId, receiverId, content);
+    return sendMessageDb(senderId, receiverId, encryptedData);
   }
-  return sendMessage(senderId, receiverId, content);
+  return sendMessage(senderId, receiverId, encryptedData);
 }
 
 export async function markAsReadService(userId: string, contactId: string): Promise<void> {
