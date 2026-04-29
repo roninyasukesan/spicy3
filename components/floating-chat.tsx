@@ -4,7 +4,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { MessageCircle, X } from "lucide-react";
-import { ChatLayout } from "@/components/chat/chat-layout";
+import ChatLayoutLite from "@/components/chat/chat-layout-lite";
 import { localGetUser } from "@/lib/local-auth";
 import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
@@ -66,7 +66,7 @@ export function FloatingChat() {
           <div className="flex-1 overflow-hidden relative">
             {/* We override some styles of ChatLayout to fit the widget */}
             <div className="absolute inset-0 [&>div]:h-full [&>div]:rounded-none [&>div]:border-0">
-               <ChatLayout mode="floating" />
+               <ChatLayoutLite mode="floating" />
             </div>
           </div>
         </div>
