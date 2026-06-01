@@ -7,7 +7,7 @@ import { hasSupabaseConfig } from "@/lib/supabase";
 import type { UserRole } from "@/lib/utils";
 
 /**
- * Verifica se o usu·rio tem permiss„o para acessar a rota
+ * Verifica se o usu√°rio tem permiss√£o para acessar a rota
  */
 function checkRouteAccess(pathname: string, userRole: UserRole | undefined): boolean {
   if (!userRole) return false;
@@ -15,35 +15,35 @@ function checkRouteAccess(pathname: string, userRole: UserRole | undefined): boo
   // Admin tem acesso a tudo
   if (userRole === "admin") return true;
 
-  // Verifica rotas especÌficas
+  // Verifica rotas espec√≠ficas
   if (pathname.startsWith("/dashboard/admin")) {
     return userRole === "admin";
   }
-  
+
   if (pathname.startsWith("/dashboard/modelo")) {
     return userRole === "modelo";
   }
-  
+
   if (pathname.startsWith("/dashboard/cliente")) {
     return userRole === "cliente";
   }
 
-  // Rota genÈrica /dashboard/chat È acessÌvel por todos os usu·rios autenticados
+  // Rota gen√©rica /dashboard/chat √© acess√≠vel por todos os usu√°rios autenticados
   if (pathname.startsWith("/dashboard/chat")) {
     return true;
   }
 
-  // Dashboard raiz - redirecionar para ·rea especÌfica
+  // Dashboard raiz - redirecionar para √°rea espec√≠fica
   if (pathname === "/dashboard") {
     return true;
   }
 
-  // Por padr„o, permitir acesso
+  // Por padr√£o, permitir acesso
   return true;
 }
 
 /**
- * ObtÈm a rota de redirecionamento baseada no role do usu·rio
+ * Obt√©m a rota de redirecionamento baseada no role do usu√°rio
  */
 function getDefaultRouteForRole(role: UserRole): string {
   switch (role) {
@@ -88,7 +88,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         // Check role-based access
         const hasAccess = checkRouteAccess(pathname, localUser.role);
-        
+
         if (!hasAccess) {
           // Redirect to access denied or to user's default dashboard
           if (active) {
@@ -97,7 +97,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           return;
         }
 
-        // Se est· na rota raiz do dashboard, redireciona para ·rea especÌfica
+        // Se est√° na rota raiz do dashboard, redireciona para √°rea espec√≠fica
         if (pathname === "/dashboard") {
           if (active) {
             router.replace(getDefaultRouteForRole(localUser.role));
