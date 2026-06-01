@@ -11,6 +11,7 @@ import { ModelDetailsModal, Model } from "@/components/model-details-modal";
 import { SearchFiltersState } from "@/app/busca/page";
 import { PhysicalCharacteristics } from "@/lib/physical-characteristics";
 import { getAllLocalProfiles } from "@/lib/local-auth";
+import { useProfilesVersion } from "@/hooks/use-profiles-version";
 import { StoryViewer } from "@/components/story-viewer";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
@@ -32,6 +33,7 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
   const [filteredProfiles, setFilteredProfiles] = useState<Model[]>([]);
   const [profiles, setProfiles] = useState<Model[]>([]);
   const [sortBy, setSortBy] = useState<string>("relevance");
+  const profilesVersion = useProfilesVersion();
 
   useEffect(() => {
     const localProfiles = getAllLocalProfiles();
@@ -98,7 +100,7 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
         };
     });
     setProfiles(mapped);
-  }, []);
+  }, [profilesVersion]);
 
   useEffect(() => {
     const filtered = profiles.filter(profile => {

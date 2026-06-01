@@ -7,11 +7,13 @@ import { useEffect, useState } from "react";
 import { getAllLocalProfiles } from "@/lib/local-auth";
 import { Model } from "@/components/model-details-modal";
 import { ModelDetailsModal } from "@/components/model-details-modal";
+import { useProfilesVersion } from "@/hooks/use-profiles-version";
 
 export function ProfileShowcase() {
   const [profiles, setProfiles] = useState<Model[]>([]);
   const [selectedModel, setSelectedModel] = useState<Model | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const profilesVersion = useProfilesVersion();
 
   useEffect(() => {
     const localProfiles = getAllLocalProfiles();
@@ -45,7 +47,7 @@ export function ProfileShowcase() {
         };
     });
     setProfiles(mappedModels);
-  }, []);
+  }, [profilesVersion]);
 
   const handleDetailsClick = (model: Model) => {
     setSelectedModel(model);

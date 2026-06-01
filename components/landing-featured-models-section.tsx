@@ -11,12 +11,14 @@ import { ModelDetailsModal, Model } from "@/components/model-details-modal";
 import { useFavorites } from "@/lib/favorites";
 import { cn } from "@/lib/utils";
 import { getAllLocalProfiles, ModelProfile } from "@/lib/local-auth";
+import { useProfilesVersion } from "@/hooks/use-profiles-version";
 
 export function LandingFeaturedModelsSection() {
   const [selectedModel, setSelectedModel] = useState<Model | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const { isFavorite, toggle } = useFavorites();
   const [models, setModels] = useState<Model[]>([]);
+  const profilesVersion = useProfilesVersion();
 
   useEffect(() => {
     // Load models from local storage (simulating DB)
@@ -56,7 +58,7 @@ export function LandingFeaturedModelsSection() {
     });
 
     setModels(mappedModels);
-  }, []);
+  }, [profilesVersion]);
 
   const handleOpenModal = (model: Model) => {
     setSelectedModel(model);
