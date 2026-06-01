@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { getAllLocalProfiles, localGetUser } from "@/lib/local-auth";
+import { useProfilesVersion } from "@/hooks/use-profiles-version";
 import { StoryViewer } from "@/components/story-viewer";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Model } from "@/components/model-details-modal";
@@ -22,6 +23,7 @@ export default function StoriesPage() {
   const [needsLogin, setNeedsLogin] = useState(false);
   const [needsSubscription, setNeedsSubscription] = useState(false);
   const [currentUser, setCurrentUser] = useState(localGetUser());
+  const profilesVersion = useProfilesVersion();
 
   useEffect(() => {
     // Fetch profiles with stories
@@ -47,7 +49,7 @@ export default function StoriesPage() {
         setCurrentIndex(index);
       }
     }
-  }, [initialProfileId]);
+  }, [initialProfileId, profilesVersion]);
 
   useEffect(() => {
     const handleAuthChange = () => {

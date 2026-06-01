@@ -474,6 +474,8 @@ export function saveModelProfile(email: string, profile: ModelProfile) {
   const allProfiles = allProfilesRaw ? JSON.parse(allProfilesRaw) : {}
   allProfiles[email] = { ...profile, email } // Ensure email is saved within profile if needed for search
   window.localStorage.setItem(MODEL_PROFILE_KEY, JSON.stringify(allProfiles))
+  // Notify any mounted listeners (profile lists, search, stories) to refresh
+  window.dispatchEvent(new Event("spicy-profile-change"))
 }
 
 export function getAllLocalProfiles(): (ModelProfile & { email: string })[] {

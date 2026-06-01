@@ -6,12 +6,14 @@ import { ModelDetailsModal, Model } from "@/components/model-details-modal";
 import { StoryViewer } from "@/components/story-viewer";
 import { useState, useEffect } from "react";
 import { getAllLocalProfiles } from "@/lib/local-auth";
+import { useProfilesVersion } from "@/hooks/use-profiles-version";
 
 export function ProfilesList() {
   const [selectedModel, setSelectedModel] = useState<Model | null>(null);
   const [storyModel, setStoryModel] = useState<Model | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [profiles, setProfiles] = useState<Model[]>([]);
+  const profilesVersion = useProfilesVersion();
 
   useEffect(() => {
     const localProfiles = getAllLocalProfiles();
@@ -45,7 +47,7 @@ export function ProfilesList() {
       };
     });
     setProfiles(mapped);
-  }, []);
+  }, [profilesVersion]);
 
   const handleOpenModal = (model: Model) => {
     setSelectedModel(model);
