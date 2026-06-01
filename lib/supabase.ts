@@ -57,4 +57,8 @@ function makeMock(): any {
   };
 }
 
+export function hasSupabaseConfig(): boolean {
+  return Boolean(url && key);
+}
+
 export const supabase: any = url && key ? createClient(url, key) : makeMock();
