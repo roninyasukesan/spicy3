@@ -25,6 +25,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { LoginForm } from "@/components/login-form"
 import { SubscriptionModal } from "@/components/subscription-modal"
 import { cn } from "@/lib/utils"
+import { getGalleryItemsFromModel } from "@/lib/model-mappers"
 
 interface ProfileDetailsProps {
   profileId: string
@@ -96,6 +97,7 @@ export function ProfileDetailsFetched({ profileId }: ProfileDetailsProps) {
         workingHours: "",
         location: "",
         images: p.gallery ?? [p.image_url ?? "/placeholder.svg?height=600&width=400"],
+        galleryItems: p.gallery_items ?? undefined,
         whatsapp: "",
       })
     }
@@ -106,6 +108,13 @@ export function ProfileDetailsFetched({ profileId }: ProfileDetailsProps) {
   }, [profileId])
 
   const hasContentAccess = currentUser?.plan === "vip" || currentUser?.subscribedModelIds?.includes(profileId) || currentUser?.role === "admin" || currentUser?.role === "modelo"
+  const galleryItems = profile ? getGalleryItemsFromModel({
+    imageUrl: profile.images?.[0] || "/placeholder.svg?height=600&width=400",
+    gallery: profile.images,
+    galleryItems: profile.galleryItems,
+  }) : []
+  const currentGalleryItem = galleryItems[currentImageIndex]
+  const shouldBlurCurrentImage = Boolean(currentGalleryItem?.isBlurred && !hasContentAccess)
 
   const handleImageClick = (index: number) => {
     if (hasContentAccess) {
@@ -137,13 +146,13 @@ export function ProfileDetailsFetched({ profileId }: ProfileDetailsProps) {
                     onClick={() => handleImageClick(currentImageIndex)}
                   >
                     <Image
-                      src={profile.images[currentImageIndex]}
+                      src={currentGalleryItem?.url || profile.images[currentImageIndex]}
                       alt={profile.name}
                       fill
-                      className={cn("object-cover", !hasContentAccess && "blur-md")}
+                      className={cn("object-cover", shouldBlurCurrentImage && "blur-md")}
                       priority
                     />
-                    {!hasContentAccess && (
+                    {shouldBlurCurrentImage && (
                       <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                         <div className="text-center">
                           <Eye className="h-12 w-12 text-gray-300 mx-auto mb-2" />
@@ -176,22 +185,22 @@ export function ProfileDetailsFetched({ profileId }: ProfileDetailsProps) {
               </div>
 
               <div className="grid grid-cols-4 gap-2 p-4">
-                {profile?.images?.map((image: string, index: number) => (
+                {galleryItems.map((image, index: number) => (
                   <div
-                    key={index}
+                    key={image.id}
                     className={`relative aspect-square cursor-pointer rounded-lg overflow-hidden border-2 ${
                       currentImageIndex === index ? "border-primary-500" : "border-transparent"
                     }`}
                     onClick={() => handleImageClick(index)}
                   >
                     <Image
-                      src={image}
+                      src={image.url}
                       alt={`${profile.name} ${index + 1}`}
                       fill
-                      className={cn("object-cover", !hasContentAccess && "blur-md")}
+                      className={cn("object-cover", image.isBlurred && !hasContentAccess && "blur-md")}
                       sizes="(max-width: 768px) 25vw, 15vw"
                     />
-                    {!hasContentAccess && (
+                    {image.isBlurred && !hasContentAccess && (
                       <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                         <Camera className="h-4 w-4 text-gray-300" />
                       </div>

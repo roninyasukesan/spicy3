@@ -20,7 +20,22 @@ const STORAGE_KEY = "spicy-auth-user"
 const HOME_CONTENT_KEY = "spicy-home-content"
 const USERS_STORAGE_KEY = "spicy-users-list"
 
-const LOCAL_USERS: LocalUserWithPassword[] = [
+function safeSetItem(key: string, value: string): boolean {
+  if (typeof window === "undefined") return false
+  try {
+    window.localStorage.setItem(key, value)
+    return true
+  } catch (error) {
+    if (error instanceof Error && (error.name === "QuotaExceededError" || error.name === "NS_ERROR_DOM_QUOTA_REACHED")) {
+      return false
+    }
+
+    console.error(`Failed to save to localStorage [${key}]:`, error)
+    return false
+  }
+}
+
+export const LOCAL_USERS: LocalUserWithPassword[] = [
   {
     email: "admin@email.com",
     password: "admin1",
@@ -263,7 +278,7 @@ export function addUser(user: DemoUser) {
     throw new Error("Usuário já existe")
   }
   const newUsers = [...users, user]
-  window.localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(newUsers))
+  safeSetItem(USERS_STORAGE_KEY, JSON.stringify(newUsers))
   return newUsers
 }
 
@@ -271,7 +286,7 @@ export function removeUser(email: string) {
   if (typeof window === "undefined") return
   const users = getUsers()
   const newUsers = users.filter(u => u.email !== email)
-  window.localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(newUsers))
+  safeSetItem(USERS_STORAGE_KEY, JSON.stringify(newUsers))
   return newUsers
 }
 
@@ -285,14 +300,14 @@ export function updateUserPlan(email: string, plan: "free" | "vip") {
       plan,
     }
   })
-  window.localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(newUsers))
+  safeSetItem(USERS_STORAGE_KEY, JSON.stringify(newUsers))
   const raw = window.localStorage.getItem(STORAGE_KEY)
   if (raw) {
     try {
       const current = JSON.parse(raw) as LocalUser
       if (current.email === email) {
         const next = { ...current, plan }
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+        safeSetItem(STORAGE_KEY, JSON.stringify(next))
         window.dispatchEvent(new Event("spicy-auth-change"))
       }
     } catch {}
@@ -327,7 +342,7 @@ export async function localSignIn(email: string, password: string): Promise<{ us
   }
 
   if (typeof window !== "undefined") {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(user))
+    safeSetItem(STORAGE_KEY, JSON.stringify(user))
     window.dispatchEvent(new Event("spicy-auth-change"))
   }
 
@@ -400,7 +415,7 @@ export function setHomeContent(updates: Partial<HomeContent>): HomeContent {
     ...current,
     ...updates,
   }
-  window.localStorage.setItem(HOME_CONTENT_KEY, JSON.stringify(next))
+  safeSetItem(HOME_CONTENT_KEY, JSON.stringify(next))
   return next
 }
 
@@ -426,10 +441,17 @@ export type ModelProfile = {
     piercings: string
   }
   photos?: string[]
+  photoItems?: ModelPhoto[]
   coverImage?: string
   voiceUrl?: string
   email?: string
   stories?: Story[]
+}
+
+export type ModelPhoto = {
+  id: string
+  url: string
+  isBlurred?: boolean
 }
 
 export type Story = {
@@ -439,9 +461,70 @@ export type Story = {
   duration?: number // in seconds, default 5s for images
   createdAt: string
   thumbnailUrl?: string // for videos
+  isBlurred?: boolean
 }
 
 const MODEL_PROFILE_KEY = "spicy-model-profile"
+
+function createPhotoId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID()
+  }
+  return `photo-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+function normalizePhotoItem(
+  photo: string | Partial<ModelPhoto> | null | undefined,
+  index: number
+): ModelPhoto | null {
+  if (!photo) return null
+
+  if (typeof photo === "string") {
+    return {
+      id: `legacy-${index}-${photo.slice(0, 16)}`,
+      url: photo,
+      isBlurred: false,
+    }
+  }
+
+  if (!photo.url) return null
+
+  return {
+    id: photo.id || createPhotoId(),
+    url: photo.url,
+    isBlurred: Boolean(photo.isBlurred),
+  }
+}
+
+export function getProfilePhotoItems(profile?: Partial<ModelProfile> | null): ModelPhoto[] {
+  if (!profile) return []
+
+  const sourcePhotos =
+    profile.photoItems && profile.photoItems.length > 0 ? profile.photoItems : profile.photos || []
+
+  return sourcePhotos
+    .map((photo, index) => normalizePhotoItem(photo, index))
+    .filter((photo): photo is ModelPhoto => Boolean(photo))
+}
+
+export function getProfilePhotoUrls(profile?: Partial<ModelProfile> | null): string[] {
+  return getProfilePhotoItems(profile).map((photo) => photo.url)
+}
+
+export function getProfileCoverImage(profile?: Partial<ModelProfile> | null): string | undefined {
+  return getProfilePhotoItems(profile)[0]?.url || profile?.coverImage || profile?.photos?.[0]
+}
+
+export function normalizeModelProfile(profile: ModelProfile): ModelProfile {
+  const photoItems = getProfilePhotoItems(profile)
+
+  return {
+    ...profile,
+    photoItems,
+    photos: photoItems.map((photo) => photo.url),
+    coverImage: photoItems[0]?.url || profile.coverImage,
+  }
+}
 
 export function getModelProfile(email: string): ModelProfile | null {
   // Check local storage first
@@ -453,7 +536,7 @@ export function getModelProfile(email: string): ModelProfile | null {
         if (allProfiles[email]) {
           // Merge with seed to ensure new fields (like stories) appear if not in local yet
           const seed = SEED_PROFILES[email] || {}
-          return { ...seed, ...allProfiles[email], email }
+          return normalizeModelProfile({ ...seed, ...allProfiles[email], email })
         }
       } catch {
         // ignore error
@@ -463,7 +546,7 @@ export function getModelProfile(email: string): ModelProfile | null {
 
   // Fallback to seed profiles
   if (SEED_PROFILES[email]) {
-    return { ...SEED_PROFILES[email], email } // Ensure email is attached
+    return normalizeModelProfile({ ...SEED_PROFILES[email], email }) // Ensure email is attached
   }
 
   return null
@@ -471,10 +554,29 @@ export function getModelProfile(email: string): ModelProfile | null {
 
 export function saveModelProfile(email: string, profile: ModelProfile) {
   if (typeof window === "undefined") return
-  const allProfilesRaw = window.localStorage.getItem(MODEL_PROFILE_KEY)
-  const allProfiles = allProfilesRaw ? JSON.parse(allProfilesRaw) : {}
-  allProfiles[email] = { ...profile, email } // Ensure email is saved within profile if needed for search
-  window.localStorage.setItem(MODEL_PROFILE_KEY, JSON.stringify(allProfiles))
+  try {
+    const allProfilesRaw = window.localStorage.getItem(MODEL_PROFILE_KEY)
+    let allProfiles: Record<string, ModelProfile> = {}
+    
+    if (allProfilesRaw) {
+      try {
+        allProfiles = JSON.parse(allProfilesRaw)
+      } catch (e) {
+        console.error("Failed to parse profiles from localStorage:", e)
+        allProfiles = {}
+      }
+    }
+    
+    allProfiles[email] = normalizeModelProfile({ ...profile, email })
+    return safeSetItem(MODEL_PROFILE_KEY, JSON.stringify(allProfiles))
+  } catch (error) {
+    if (error instanceof Error && (error.name === 'QuotaExceededError' || error.name === 'NS_ERROR_DOM_QUOTA_REACHED')) {
+      return false
+    }
+
+    console.error("Failed to save model profile to localStorage:", error)
+    return false
+  }
 }
 
 export function getAllLocalProfiles(): (ModelProfile & { email: string })[] {
@@ -483,7 +585,7 @@ export function getAllLocalProfiles(): (ModelProfile & { email: string })[] {
   // 1. Add mock profiles from mock-profiles.ts
   mockProfiles.forEach(mp => {
     const email = `mock${mp.id}@spicy.com`;
-    profilesMap[email] = {
+    profilesMap[email] = normalizeModelProfile({
       artisticName: mp.name,
       phone: "",
       city: mp.city,
@@ -508,12 +610,12 @@ export function getAllLocalProfiles(): (ModelProfile & { email: string })[] {
       coverImage: mp.imageUrl,
       email: email,
       stories: []
-    };
+    });
   })
 
   // 2. Add seed profiles (overriding if same email, but they are different)
   Object.keys(SEED_PROFILES).forEach(email => {
-    profilesMap[email] = { ...SEED_PROFILES[email], email }
+    profilesMap[email] = normalizeModelProfile({ ...SEED_PROFILES[email], email })
   })
 
   // 3. Override with local storage profiles (merging to keep new seed fields)
@@ -525,9 +627,9 @@ export function getAllLocalProfiles(): (ModelProfile & { email: string })[] {
         Object.keys(localProfiles).forEach(email => {
           // If profile exists in seed, merge. If not (new user), just use local.
           if (profilesMap[email]) {
-            profilesMap[email] = { ...profilesMap[email], ...localProfiles[email], email }
+            profilesMap[email] = normalizeModelProfile({ ...profilesMap[email], ...localProfiles[email], email })
           } else {
-            profilesMap[email] = { ...localProfiles[email], email }
+            profilesMap[email] = normalizeModelProfile({ ...localProfiles[email], email })
           }
         })
       } catch {
@@ -536,5 +638,30 @@ export function getAllLocalProfiles(): (ModelProfile & { email: string })[] {
     }
   }
 
-  return Object.values(profilesMap)
+  return Object.values(profilesMap).map((profile) => normalizeModelProfile(profile))
+}
+
+export function exportAllLocalData() {
+  if (typeof window === "undefined") return null
+
+  const data = {
+    exportDate: new Date().toISOString(),
+    version: "1.0",
+    storage: {
+      users: getUsers(),
+      // Export all profiles (Mock + Seed + Local)
+      profiles: getAllLocalProfiles(),
+      homeContent: getHomeContent(),
+      chatMessages: (() => {
+        const raw = window.localStorage.getItem("spicy_chat_messages")
+        return raw ? JSON.parse(raw) : []
+      })(),
+      favorites: (() => {
+        const raw = window.localStorage.getItem("spicy_favorites")
+        return raw ? JSON.parse(raw) : []
+      })()
+    }
+  }
+
+  return data
 }

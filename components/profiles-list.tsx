@@ -6,6 +6,7 @@ import { ModelDetailsModal, Model } from "@/components/model-details-modal";
 import { StoryViewer } from "@/components/story-viewer";
 import { useState, useEffect } from "react";
 import { getAllLocalProfiles } from "@/lib/local-auth";
+import { mapLocalProfileToModel } from "@/lib/model-mappers";
 
 export function ProfilesList() {
   const [selectedModel, setSelectedModel] = useState<Model | null>(null);
@@ -16,21 +17,10 @@ export function ProfilesList() {
   useEffect(() => {
     const localProfiles = getAllLocalProfiles();
     const mapped: Model[] = localProfiles.map((p, index) => {
-      const id = p.email;
       return {
-        id: id,
-        name: p.artisticName,
-        age: parseInt(p.age) || 20,
-        city: p.city,
+        ...mapLocalProfileToModel(p),
         rating: 4.9,
-        price: p.priceRange,
-        imageUrl: p.coverImage || p.photos?.[0] || "/placeholder.svg?height=400&width=300",
         isVerified: true,
-        bio: p.bio,
-        services: p.services,
-        fetishes: p.fetishes,
-        gallery: p.photos || [],
-        stories: p.stories || [],
         characteristics: {
            hairColor: p.characteristics.hairColor,
            ethnicity: p.characteristics.ethnicity,

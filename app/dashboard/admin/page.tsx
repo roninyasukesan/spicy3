@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Header } from "@/components/header";
 import { type UserRole } from "@/lib/utils";
-import { localGetUser, getHomeContent, setHomeContent, type HomeContent, getUsers, addUser, removeUser, updateUserPlan, type DemoUser } from "@/lib/local-auth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { localGetUser, getHomeContent, setHomeContent, type HomeContent, getUsers, addUser, removeUser, updateUserPlan, type DemoUser, exportAllLocalData, getAllLocalProfiles, type ModelProfile } from "@/lib/local-auth";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Database, Download, Eye, LayoutDashboard, MessageSquare, Search, Settings, Users } from "lucide-react";
 
 export default function AdminDashboardPage() {
   const router = useRouter();
@@ -24,7 +25,17 @@ export default function AdminDashboardPage() {
   const [homeContent, setHomeContentState] = useState<HomeContent | null>(null);
   const [savingHome, setSavingHome] = useState(false);
   const [usersList, setUsersList] = useState<DemoUser[]>([]);
+  const [allModels, setAllModels] = useState<(ModelProfile & { email: string })[]>([]);
+  const [userSearch, setUserSearch] = useState("");
+  const [userRoleFilter, setUserRoleFilter] = useState<"todos" | UserRole>("todos");
+  const [modelSearch, setModelSearch] = useState("");
+  const [modelFilter, setModelFilter] = useState<"todos" | "com-fotos" | "com-stories">("todos");
   const [newUser, setNewUser] = useState({ name: "", email: "", password: "", role: "cliente" as UserRole, plan: "free" as "free" | "vip" });
+
+  const refreshAdminData = () => {
+    setUsersList(getUsers());
+    setAllModels(getAllLocalProfiles());
+  };
 
   useEffect(() => {
     const user = localGetUser();
@@ -42,7 +53,7 @@ export default function AdminDashboardPage() {
     }
     const content = getHomeContent();
     setHomeContentState(content);
-    setUsersList(getUsers());
+    refreshAdminData();
     setRole(user.role);
     setLoading(false);
   }, [router]);
@@ -75,7 +86,7 @@ export default function AdminDashboardPage() {
         ...newUser,
         plan: newUser.role === "cliente" ? newUser.plan : undefined,
       });
-      setUsersList(getUsers());
+      refreshAdminData();
       setNewUser({ name: "", email: "", password: "", role: "cliente", plan: "free" });
       toast({ title: "Usuário adicionado com sucesso" });
     } catch (error: any) {
@@ -90,15 +101,55 @@ export default function AdminDashboardPage() {
     }
     if (window.confirm("Tem certeza que deseja remover este usuário?")) {
       removeUser(email);
-      setUsersList(getUsers());
+      refreshAdminData();
       toast({ title: "Usuário removido com sucesso" });
     }
   };
 
   const handleUpdatePlan = (email: string, plan: "free" | "vip") => {
     updateUserPlan(email, plan);
-    setUsersList(getUsers());
+    refreshAdminData();
     toast({ title: "Plano atualizado com sucesso" });
+  };
+
+  const getDashboardRouteForRole = (user: DemoUser) => {
+    if (user.role === "admin") return "/dashboard/admin";
+    if (user.role === "modelo") return `/dashboard/admin/editar-modelo?email=${encodeURIComponent(user.email)}`;
+    return "/dashboard/cliente";
+  };
+
+  const handleExportData = () => {
+    const data = exportAllLocalData();
+    if (!data) return;
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `spicy-export-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: "Dados exportados",
+      description: "O arquivo JSON foi gerado com sucesso.",
+    });
+  };
+
+  const handleOpenModelWorkspace = () => {
+    const firstModel = allModels[0];
+    if (!firstModel) {
+      toast({
+        title: "Nenhuma modelo encontrada",
+        description: "Cadastre ou carregue um perfil de modelo para abrir a área de edição.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    router.push(`/dashboard/admin/editar-modelo?email=${encodeURIComponent(firstModel.email)}`);
   };
 
   if (loading || role !== "admin" || !homeContent) {
@@ -109,22 +160,123 @@ export default function AdminDashboardPage() {
     );
   }
 
+  const normalizedUserSearch = userSearch.trim().toLowerCase();
+  const filteredUsers = usersList.filter((user) => {
+    const matchesSearch =
+      !normalizedUserSearch ||
+      user.name.toLowerCase().includes(normalizedUserSearch) ||
+      user.email.toLowerCase().includes(normalizedUserSearch);
+
+    const matchesRole = userRoleFilter === "todos" || user.role === userRoleFilter;
+    return matchesSearch && matchesRole;
+  });
+
+  const normalizedModelSearch = modelSearch.trim().toLowerCase();
+  const filteredModels = allModels.filter((model) => {
+    const matchesSearch =
+      !normalizedModelSearch ||
+      model.artisticName.toLowerCase().includes(normalizedModelSearch) ||
+      model.email.toLowerCase().includes(normalizedModelSearch) ||
+      model.city.toLowerCase().includes(normalizedModelSearch);
+
+    if (modelFilter === "com-fotos") {
+      return matchesSearch && (model.photoItems?.length || model.photos?.length || 0) > 0;
+    }
+
+    if (modelFilter === "com-stories") {
+      return matchesSearch && (model.stories?.length || 0) > 0;
+    }
+
+    return matchesSearch;
+  });
+
+  const adminCount = usersList.filter((user) => user.role === "admin").length;
+  const modelUserCount = usersList.filter((user) => user.role === "modelo").length;
+  const clientCount = usersList.filter((user) => user.role === "cliente").length;
+  const totalPhotos = allModels.reduce((sum, model) => sum + (model.photoItems?.length || model.photos?.length || 0), 0);
+  const totalStories = allModels.reduce((sum, model) => sum + (model.stories?.length || 0), 0);
+
   return (
     <div className="min-h-screen bg-dark-950">
       <Header />
       <main className="container mx-auto px-4 py-8 space-y-8">
-        <h1 className="text-3xl font-bold text-white">Dashboard Admin</h1>
-        <p className="text-gray-400">
-          Gerencie o conteúdo do site, usuários, pagamentos e suporte.
-        </p>
+        <div className="space-y-3">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-white">Dashboard Admin</h1>
+              <p className="text-gray-400">
+                Gerencie usuários, modelos, conteúdo, exportação e acessos globais do sistema.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <Card className="bg-dark-900 border-gray-800">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-400">Usuários</p>
+                    <p className="text-2xl font-bold text-white">{usersList.length}</p>
+                  </div>
+                  <Users className="h-5 w-5 text-primary" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-dark-900 border-gray-800">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-400">Modelos</p>
+                    <p className="text-2xl font-bold text-white">{allModels.length}</p>
+                  </div>
+                  <LayoutDashboard className="h-5 w-5 text-primary" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-dark-900 border-gray-800">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-400">Clientes</p>
+                    <p className="text-2xl font-bold text-white">{clientCount}</p>
+                  </div>
+                  <Users className="h-5 w-5 text-primary" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-dark-900 border-gray-800">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-400">Fotos</p>
+                    <p className="text-2xl font-bold text-white">{totalPhotos}</p>
+                  </div>
+                  <Eye className="h-5 w-5 text-primary" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-dark-900 border-gray-800">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-400">Stories</p>
+                    <p className="text-2xl font-bold text-white">{totalStories}</p>
+                  </div>
+                  <MessageSquare className="h-5 w-5 text-primary" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
 
         <Tabs defaultValue="editor" className="space-y-6">
           <TabsList className="flex flex-wrap gap-2 overflow-x-auto">
             <TabsTrigger value="editor">Editor visual</TabsTrigger>
             <TabsTrigger value="usuarios">Usuários</TabsTrigger>
             <TabsTrigger value="pagamentos">Pagamentos</TabsTrigger>
-            <TabsTrigger value="modelos">Novos perfis</TabsTrigger>
+            <TabsTrigger value="modelos">Modelos</TabsTrigger>
             <TabsTrigger value="suporte">Chat de suporte</TabsTrigger>
+            <TabsTrigger value="sistema">Sistema</TabsTrigger>
           </TabsList>
 
           <TabsContent value="editor" className="space-y-4">
@@ -170,6 +322,9 @@ export default function AdminDashboardPage() {
             <Card className="bg-dark-900 border-gray-800">
               <CardHeader>
                 <CardTitle className="text-white">Adicionar novo usuário</CardTitle>
+                <CardDescription className="text-gray-400">
+                  Crie admins, modelos e clientes diretamente pelo painel central.
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleAddUser} className="grid gap-4 md:grid-cols-2 lg:grid-cols-6 items-end">
@@ -245,9 +400,39 @@ export default function AdminDashboardPage() {
             <Card className="bg-dark-900 border-gray-800">
               <CardHeader>
                 <CardTitle className="text-white">Gerenciamento de usuários</CardTitle>
+                <CardDescription className="text-gray-400">
+                  Busque, filtre e entre nos painéis conforme o papel de cada usuário.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 text-gray-300">
-                <p>Usuários ativos no sistema.</p>
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div className="relative md:col-span-2">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+                    <Input
+                      value={userSearch}
+                      onChange={(e) => setUserSearch(e.target.value)}
+                      placeholder="Buscar por nome ou e-mail"
+                      className="pl-10 bg-dark-800 border-gray-700 text-white"
+                    />
+                  </div>
+                  <Select value={userRoleFilter} onValueChange={(value: "todos" | UserRole) => setUserRoleFilter(value)}>
+                    <SelectTrigger className="bg-dark-800 border-gray-700 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-dark-800 border-gray-700 text-white">
+                      <SelectItem value="todos">Todos os papéis</SelectItem>
+                      <SelectItem value="admin">Admins</SelectItem>
+                      <SelectItem value="modelo">Modelos</SelectItem>
+                      <SelectItem value="cliente">Clientes</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="outline" className="border-gray-700 text-gray-300">{adminCount} admins</Badge>
+                  <Badge variant="outline" className="border-gray-700 text-gray-300">{modelUserCount} modelos</Badge>
+                  <Badge variant="outline" className="border-gray-700 text-gray-300">{clientCount} clientes</Badge>
+                  <Badge variant="outline" className="border-primary/40 text-primary">{filteredUsers.length} visíveis</Badge>
+                </div>
                 <div className="rounded-md border border-gray-800 bg-dark-950">
                   <Table>
                     <TableHeader>
@@ -261,7 +446,7 @@ export default function AdminDashboardPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {usersList.map(user => (
+                      {filteredUsers.map(user => (
                         <TableRow key={user.email}>
                           <TableCell className="text-white">{user.name}</TableCell>
                           <TableCell className="text-gray-200 break-all">{user.email}</TableCell>
@@ -294,14 +479,24 @@ export default function AdminDashboardPage() {
                           </TableCell>
                           <TableCell className="font-mono text-gray-200">{user.password}</TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => handleDeleteUser(user.email)}
-                              disabled={user.email === "admin@email.com"}
-                            >
-                              Remover
-                            </Button>
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-primary hover:text-primary/80 hover:bg-primary/10"
+                                onClick={() => router.push(getDashboardRouteForRole(user))}
+                              >
+                                Abrir Painel
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => handleDeleteUser(user.email)}
+                                disabled={user.email === "admin@email.com"}
+                              >
+                                Remover
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -327,11 +522,92 @@ export default function AdminDashboardPage() {
           <TabsContent value="modelos">
             <Card className="bg-dark-900 border-gray-800">
               <CardHeader>
-                <CardTitle className="text-white">Verificação de novos perfis</CardTitle>
+                <CardTitle className="text-white">Gerenciamento de Modelos</CardTitle>
+                <CardDescription className="text-gray-400">
+                  Visualize, filtre e abra rapidamente edição, perfil público e conteúdos salvos.
+                </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-2 text-gray-300">
-                <p>Lista de novos cadastros de modelos para aprovação.</p>
-                <p>Aprovar, recusar ou solicitar ajustes no perfil.</p>
+              <CardContent className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div className="relative md:col-span-2">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+                    <Input
+                      value={modelSearch}
+                      onChange={(e) => setModelSearch(e.target.value)}
+                      placeholder="Buscar modelo por nome, e-mail ou cidade"
+                      className="pl-10 bg-dark-800 border-gray-700 text-white"
+                    />
+                  </div>
+                  <Select value={modelFilter} onValueChange={(value: "todos" | "com-fotos" | "com-stories") => setModelFilter(value)}>
+                    <SelectTrigger className="bg-dark-800 border-gray-700 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-dark-800 border-gray-700 text-white">
+                      <SelectItem value="todos">Todos os modelos</SelectItem>
+                      <SelectItem value="com-fotos">Com fotos</SelectItem>
+                      <SelectItem value="com-stories">Com stories</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="outline" className="border-gray-700 text-gray-300">{allModels.length} modelos totais</Badge>
+                  <Badge variant="outline" className="border-gray-700 text-gray-300">{totalPhotos} fotos</Badge>
+                  <Badge variant="outline" className="border-gray-700 text-gray-300">{totalStories} stories</Badge>
+                  <Badge variant="outline" className="border-primary/40 text-primary">{filteredModels.length} visíveis</Badge>
+                </div>
+                <div className="rounded-md border border-gray-800 bg-dark-950 overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-gray-300">Nome Artístico</TableHead>
+                        <TableHead className="text-gray-300">E-mail</TableHead>
+                        <TableHead className="text-gray-300">Cidade</TableHead>
+                        <TableHead className="text-gray-300">Fotos</TableHead>
+                        <TableHead className="text-gray-300">Stories</TableHead>
+                        <TableHead className="text-gray-300 text-right">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredModels.map(model => (
+                        <TableRow key={model.email}>
+                          <TableCell className="text-white font-medium">{model.artisticName}</TableCell>
+                          <TableCell className="text-gray-400">{model.email}</TableCell>
+                          <TableCell className="text-gray-400">{model.city}</TableCell>
+                          <TableCell className="text-gray-400">
+                            <Badge variant="outline" className="border-gray-700 text-gray-300">
+                              {(model.photoItems?.length || model.photos?.length || 0)} fotos
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-gray-400">
+                            <Badge variant="outline" className="border-gray-700 text-gray-300">
+                              {(model.stories?.length || 0)} stories
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-primary hover:text-primary/80 hover:bg-primary/10"
+                                onClick={() => router.push(`/dashboard/admin/editar-modelo?email=${encodeURIComponent(model.email)}`)}
+                              >
+                                Editar Conteudo
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-gray-300 hover:text-white hover:bg-dark-800"
+                                onClick={() => router.push(`/modelo/${encodeURIComponent(model.email)}`)}
+                              >
+                                Ver Publico
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -347,8 +623,73 @@ export default function AdminDashboardPage() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          <TabsContent value="sistema">
+            <div className="grid gap-6 md:grid-cols-2">
+              <Card className="bg-dark-900 border-gray-800">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center gap-2">
+                    <Database className="h-5 w-5 text-primary" />
+                    Exportar Dados
+                  </CardTitle>
+                  <CardDescription className="text-gray-400">
+                    Baixe todos os dados do LocalStorage para migração futura.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="p-4 bg-dark-800 rounded-lg border border-gray-700">
+                    <ul className="text-sm text-gray-300 space-y-2">
+                      <li className="flex items-center gap-2">• Lista de Usuários e Senhas</li>
+                      <li className="flex items-center gap-2">• Perfis de Modelos e Fotos (Base64)</li>
+                      <li className="flex items-center gap-2">• Conteúdo da Home Page</li>
+                      <li className="flex items-center gap-2">• Histórico de Chat e Favoritos</li>
+                    </ul>
+                  </div>
+                  <Button 
+                    className="w-full bg-primary hover:bg-primary/90 text-white flex items-center gap-2"
+                    onClick={handleExportData}
+                  >
+                    <Download className="h-4 w-4" />
+                    Baixar Backup JSON
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-dark-900 border-gray-800">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center gap-2">
+                    <Settings className="h-5 w-5 text-primary" />
+                    Manutenção
+                  </CardTitle>
+                  <CardDescription className="text-gray-400">
+                    Ações de limpeza e diagnóstico do sistema.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button 
+                    variant="outline"
+                    className="w-full border-gray-700 text-gray-300 hover:bg-dark-800"
+                    onClick={() => {
+                      if (confirm("Isso apagará apenas os dados salvos no navegador. Deseja continuar?")) {
+                        localStorage.clear();
+                        window.location.reload();
+                      }
+                    }}
+                  >
+                    Limpar Armazenamento Local
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
         </Tabs>
       </main>
+
+      <footer className="border-t border-gray-800 bg-dark-950 py-8">
+        <div className="container mx-auto px-4 text-center text-gray-500 text-sm">
+          &copy; {new Date().getFullYear()} Spicy Dashboard - Painel Administrativo de Controle
+        </div>
+      </footer>
     </div>
   );
 }

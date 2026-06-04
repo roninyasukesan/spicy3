@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase"
+import type { ModelPhoto } from "@/lib/local-auth"
 
 export type DbProfile = {
   id: string
@@ -14,6 +15,7 @@ export type DbProfile = {
   services: string[] | null
   fetishes: string[] | null
   gallery: string[] | null
+  gallery_items?: ModelPhoto[] | null
   characteristics: {
     hairColor?: string
     ethnicity?: string
@@ -94,6 +96,7 @@ export async function fetchProfileById(id: string): Promise<DbProfile | null> {
           services: local.services,
           fetishes: local.fetishes,
           gallery: local.photos || [],
+          gallery_items: local.photoItems || [],
           characteristics: local.characteristics
         };
       }

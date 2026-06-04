@@ -4,7 +4,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Star, Shield, Eye, Heart } from "lucide-react";
+import { Star, Shield, Eye, Heart, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Model } from "./model-details-modal";
 import Image from "next/image";
@@ -13,6 +13,7 @@ import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { localGetUser } from "@/lib/local-auth";
+import { getGalleryItemsFromModel } from "@/lib/model-mappers";
 
 interface ProfileCardProps {
   profile: Model;
@@ -32,6 +33,14 @@ export function ProfileCard({ profile, isLoggedIn, onDetailsClick, onStoryClick 
   }
   
   const hasStories = profile.stories && profile.stories.length > 0;
+  const currentUser = localGetUser();
+  const hasContentAccess =
+    currentUser?.plan === "vip" ||
+    currentUser?.subscribedModelIds?.includes(profile.id) ||
+    currentUser?.role === "admin" ||
+    currentUser?.role === "modelo";
+  const coverPhoto = getGalleryItemsFromModel(profile)[0];
+  const shouldBlurCover = Boolean(coverPhoto?.isBlurred && !hasContentAccess);
 
   // Initialize BroadcastChannel for cross-user heart actions
   useEffect(() => {
@@ -149,7 +158,7 @@ export function ProfileCard({ profile, isLoggedIn, onDetailsClick, onStoryClick 
           <div
             className={cn(
               "w-full h-full transition-transform duration-500 group-hover:scale-110 cursor-pointer",
-              { "blur-lg": !isLoggedIn }
+              { "blur-lg": shouldBlurCover }
             )}
             onClick={handleStoryClick}
           >
@@ -164,12 +173,10 @@ export function ProfileCard({ profile, isLoggedIn, onDetailsClick, onStoryClick 
           {hasStories && (
              <div className="absolute inset-0 pointer-events-none border-4 border-pink-500/50 z-10" />
           )}
-          {!isLoggedIn && (
+          {shouldBlurCover && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 pointer-events-none">
-              <Eye className="h-10 w-10 text-white mb-2" />
-              <Button size="sm" variant="outline" className="bg-transparent border-white text-white hover:bg-white hover:text-black pointer-events-auto" onClick={handleDetailsClick}>
-                Ver Perfil
-              </Button>
+              <Lock className="h-10 w-10 text-white mb-2" />
+              <span className="text-sm text-white">Foto protegida</span>
             </div>
           )}
           <div className="absolute top-3 left-3 flex flex-col gap-2">

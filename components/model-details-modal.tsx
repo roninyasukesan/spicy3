@@ -3,7 +3,7 @@
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Star, MapPin, Phone, MessageCircle, ShieldCheck, Flame, Heart, X, Video, Lock } from "lucide-react";
+import { Star, MapPin, Phone, MessageCircle, ShieldCheck, Flame, Heart, X, Video, Lock, ChevronLeft, ChevronRight } from "lucide-react";
 import Image from "next/image";
 import { useState, useEffect } from "react";
 import { useFavorites } from "@/lib/favorites";
@@ -12,7 +12,8 @@ import { useRouter } from "next/navigation";
 import { localGetUser } from "@/lib/local-auth";
 import { LoginForm } from "@/components/login-form";
 import { SubscriptionModal } from "@/components/subscription-modal";
-import { Story } from "@/lib/local-auth";
+import { Story, type ModelPhoto } from "@/lib/local-auth";
+import { getGalleryItemsFromModel } from "@/lib/model-mappers";
 import { toast } from "@/components/ui/use-toast";
 
 // Define the interface for the model prop
@@ -31,6 +32,7 @@ export interface Model {
   services?: string[];
   fetishes?: string[];
   gallery?: string[];
+  galleryItems?: ModelPhoto[];
   stories?: Story[];
   characteristics?: {
     hairColor?: string;
@@ -57,11 +59,14 @@ export function ModelDetailsModal({ model, isOpen, onClose }: ModelDetailsModalP
   const router = useRouter();
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [isGalleryLightboxOpen, setIsGalleryLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
 
   // Reset main image when model changes
   useEffect(() => {
     if (model) {
       setMainImage(model.imageUrl);
+      setLightboxIndex(0);
     }
   }, [model]);
 
@@ -76,6 +81,11 @@ export function ModelDetailsModal({ model, isOpen, onClose }: ModelDetailsModalP
       });
       return;
     }
+    // Admin and Models have unrestricted access
+    if (user.role === "admin" || user.role === "modelo") {
+      return;
+    }
+
     if (user.plan !== "vip" && !user.subscribedModelIds?.includes(model.id)) {
       setShowSubscriptionModal(true);
       toast({
@@ -99,8 +109,8 @@ export function ModelDetailsModal({ model, isOpen, onClose }: ModelDetailsModalP
       return;
     }
 
-    // Check if user has access (VIP or subscribed to this model)
-    const hasAccess = user.plan === "vip" || user.subscribedModelIds?.includes(model.id);
+    // Check if user has access (Admin, Model, VIP or subscribed to this model)
+    const hasAccess = user.role === "admin" || user.role === "modelo" || user.plan === "vip" || user.subscribedModelIds?.includes(model.id);
     
     if (!hasAccess) {
       setShowSubscriptionModal(true);
@@ -129,8 +139,8 @@ export function ModelDetailsModal({ model, isOpen, onClose }: ModelDetailsModalP
       return;
     }
 
-    // Check if user has access (VIP or subscribed to this model)
-    const hasAccess = user.plan === "vip" || user.subscribedModelIds?.includes(model.id);
+    // Check if user has access (Admin, Model, VIP or subscribed to this model)
+    const hasAccess = user.role === "admin" || user.role === "modelo" || user.plan === "vip" || user.subscribedModelIds?.includes(model.id);
     
     if (!hasAccess) {
       setShowSubscriptionModal(true);
@@ -152,24 +162,35 @@ export function ModelDetailsModal({ model, isOpen, onClose }: ModelDetailsModalP
 
   if (!model) return null;
 
-  // Use model.imageUrl as default main image if mainImage is not set
-  const currentMainImage = mainImage || model.imageUrl;
   const currentUser = localGetUser();
+  const isClient = currentUser?.role === "cliente";
   const hasContentAccess = currentUser?.plan === "vip" || currentUser?.subscribedModelIds?.includes(model.id) || currentUser?.role === "admin" || currentUser?.role === "modelo";
+  const galleryItems = getGalleryItemsFromModel(model)
   
-  // Mock additional data if missing (since we are transitioning from simple mock data)
-  const gallery = model.gallery || [
-    model.imageUrl,
-    "/placeholder.svg?height=600&width=400",
-    "/placeholder.svg?height=600&width=400",
-    "/placeholder.svg?height=600&width=400",
-  ];
+  const currentMainItem =
+    galleryItems.find((item) => item.url === mainImage) || galleryItems[0]
+  const currentMainImage = currentMainItem?.url || model.imageUrl
+  const shouldBlurCurrentMain = Boolean(currentMainItem?.isBlurred && !hasContentAccess)
   const bio = model.bio || "Uma mulher sofisticada e envolvente, pronta para transformar seus momentos em memórias inesquecíveis.";
   const services = model.services || ["Jantar a dois", "Eventos", "Viagens"];
   const fetishes = model.fetishes || [];
   const rating = model.rating || 4.9;
   const reviews = model.reviews || 15;
   const age = model.age || 24;
+
+  const openGalleryLightbox = (imageUrl: string) => {
+    const targetIndex = galleryItems.findIndex((item) => item.url === imageUrl)
+    setLightboxIndex(targetIndex >= 0 ? targetIndex : 0)
+    setIsGalleryLightboxOpen(true)
+  }
+
+  const showPrevLightboxImage = () => {
+    setLightboxIndex((prev) => (prev === 0 ? galleryItems.length - 1 : prev - 1))
+  }
+
+  const showNextLightboxImage = () => {
+    setLightboxIndex((prev) => (prev === galleryItems.length - 1 ? 0 : prev + 1))
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -186,7 +207,13 @@ export function ModelDetailsModal({ model, isOpen, onClose }: ModelDetailsModalP
           <div className="bg-dark-900 p-4">
             <div
               className="aspect-[3/4] w-full rounded-lg overflow-hidden mb-4 relative"
-              onClick={!hasContentAccess ? handleContentUnlock : undefined}
+              onClick={() => {
+                if (shouldBlurCurrentMain) {
+                  handleContentUnlock()
+                  return
+                }
+                openGalleryLightbox(currentMainImage)
+              }}
             >
               <Image 
                 src={currentMainImage} 
@@ -194,27 +221,37 @@ export function ModelDetailsModal({ model, isOpen, onClose }: ModelDetailsModalP
                 fill
                 sizes="(max-width: 768px) 100vw, 50vw"
                 style={{ objectFit: "cover" }} 
-                className={!hasContentAccess ? "blur-md" : undefined}
+                className={cn(shouldBlurCurrentMain && "blur-md")}
               />
-              {!hasContentAccess && (
+              {shouldBlurCurrentMain && (
                 <div className="absolute inset-0 bg-black/50 flex items-center justify-center text-center">
                   <div className="flex flex-col items-center gap-2 text-white">
                     <Lock className="h-8 w-8" />
-                    <span className="text-sm font-semibold">Conteúdo VIP</span>
+                    <span className="text-sm font-semibold">Foto protegida</span>
                     <span className="text-xs text-gray-200">Assine para desbloquear</span>
                   </div>
                 </div>
               )}
             </div>
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-              {gallery.map((img, index) => (
+              {galleryItems.map((item, index) => (
                 <div
-                  key={index}
-                  className={`aspect-square rounded-md cursor-pointer border-2 transition-all relative ${currentMainImage === img ? 'border-primary-500' : 'border-transparent hover:border-gray-600'}`}
-                  onClick={() => (hasContentAccess ? setMainImage(img) : handleContentUnlock())}
+                  key={item.id}
+                  className={`aspect-square rounded-md cursor-pointer border-2 transition-all relative ${currentMainImage === item.url ? 'border-primary-500' : 'border-transparent hover:border-gray-600'}`}
+                  onClick={() => {
+                    if (item.isBlurred && !hasContentAccess) {
+                      handleContentUnlock()
+                      return
+                    }
+                    setMainImage(item.url)
+                  }}
                 >
-                  <Image src={img} alt={`${model.name} ${index + 1}`} fill sizes="100px" style={{ objectFit: "cover" }} className={cn("rounded-sm", !hasContentAccess && "blur-md")} />
-                  {!hasContentAccess && <div className="absolute inset-0 bg-black/40" />}
+                  <Image src={item.url} alt={`${model.name} ${index + 1}`} fill sizes="100px" style={{ objectFit: "cover" }} className={cn("rounded-sm", item.isBlurred && !hasContentAccess && "blur-md")} />
+                  {item.isBlurred && !hasContentAccess && (
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                      <Lock className="h-4 w-4 text-white" />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -386,6 +423,94 @@ export function ModelDetailsModal({ model, isOpen, onClose }: ModelDetailsModalP
             </div>
           </div>
         </div>
+
+        {isGalleryLightboxOpen && (
+          <div
+            className="fixed inset-0 z-[70] bg-black/95 flex items-center justify-center"
+            onClick={() => setIsGalleryLightboxOpen(false)}
+          >
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                setIsGalleryLightboxOpen(false)
+              }}
+              className="absolute right-4 top-4 rounded-full bg-black/60 p-2 text-white hover:bg-black/80"
+            >
+              <X className="h-5 w-5" />
+              <span className="sr-only">Fechar slide</span>
+            </button>
+
+            {galleryItems.length > 1 && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  showPrevLightboxImage()
+                }}
+                className="absolute left-4 rounded-full bg-black/60 p-3 text-white hover:bg-black/80"
+              >
+                <ChevronLeft className="h-6 w-6" />
+                <span className="sr-only">Foto anterior</span>
+              </button>
+            )}
+
+            <div
+              className="relative h-[78vh] w-[min(92vw,540px)]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Image
+                src={galleryItems[lightboxIndex]?.url || currentMainImage}
+                alt={`${model.name} slide ${lightboxIndex + 1}`}
+                fill
+                sizes="92vw"
+                className="object-contain"
+                priority
+              />
+            </div>
+
+            {galleryItems.length > 1 && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  showNextLightboxImage()
+                }}
+                className="absolute right-4 rounded-full bg-black/60 p-3 text-white hover:bg-black/80"
+              >
+                <ChevronRight className="h-6 w-6" />
+                <span className="sr-only">Próxima foto</span>
+              </button>
+            )}
+
+            {galleryItems.length > 1 && (
+              <div
+                className="absolute bottom-4 left-1/2 flex max-w-[90vw] -translate-x-1/2 gap-2 overflow-x-auto rounded-xl bg-black/50 p-3 opacity-0 transition-opacity duration-200 hover:opacity-100"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {galleryItems.map((item, index) => (
+                  <button
+                    key={`lightbox-${item.id}`}
+                    type="button"
+                    onClick={() => setLightboxIndex(index)}
+                    className={cn(
+                      "relative h-16 w-12 shrink-0 overflow-hidden rounded-md border-2",
+                      index === lightboxIndex ? "border-primary-500" : "border-transparent"
+                    )}
+                  >
+                    <Image
+                      src={item.url}
+                      alt={`${model.name} miniatura ${index + 1}`}
+                      fill
+                      sizes="48px"
+                      className="object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </DialogContent>
       
       <Dialog open={showLoginModal} onOpenChange={setShowLoginModal}>

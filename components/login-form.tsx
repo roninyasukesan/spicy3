@@ -58,7 +58,11 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
 
           // Sync to localStorage for compatibility with local-auth
           if (typeof window !== 'undefined') {
-            localStorage.setItem("spicy-auth-user", JSON.stringify(loggedUser));
+            try {
+              localStorage.setItem("spicy-auth-user", JSON.stringify(loggedUser));
+            } catch (e) {
+              console.error("Failed to save auth user to localStorage:", e);
+            }
           }
         }
       }

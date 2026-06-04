@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { compressImage } from "@/lib/image-utils";
 import { Header } from "@/components/header";
-import { type UserRole } from "@/lib/utils";
-import { localGetUser, getModelProfile, saveModelProfile, type ModelProfile, type Story } from "@/lib/local-auth";
+import { type UserRole, cn } from "@/lib/utils";
+import { localGetUser, getAllLocalProfiles, getModelProfile, saveModelProfile, getProfilePhotoItems, type ModelPhoto, type ModelProfile, type Story } from "@/lib/local-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Play, Pause, X, Upload, Trash2, Image as ImageIcon, Film } from 'lucide-react';
+import { X, Upload, Trash2, Image as ImageIcon, Film, GripVertical, Lock, LockOpen, Star, PlayCircle } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
@@ -18,17 +19,26 @@ import { useToast } from "@/hooks/use-toast";
 import { FETISH_CATEGORIES } from "@/lib/fetishes";
 import { PHYSICAL_CHARACTERISTICS, type PhysicalCharacteristics } from "@/lib/physical-characteristics";
 import { AudioPlayerWave } from "@/components/ui/audio-player-wave";
+import { Dialog, DialogContent, DialogTitle, DialogHeader } from "@/components/ui/dialog";
 import Image from "next/image";
 
 const SERVICES_LIST = ["Acompanhante", "Massagem", "Jantar", "Eventos", "Viagens", "Fetiches"];
 
 export default function ModeloDashboardPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<UserRole | null>(null);
+  const [editingEmail, setEditingEmail] = useState("");
+  const [editingName, setEditingName] = useState("");
   const [isDragging, setIsDragging] = useState(false);
+  const [draggedPhotoId, setDraggedPhotoId] = useState<string | null>(null);
+  const [draggedStoryId, setDraggedStoryId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [previewMedia, setPreviewMedia] = useState<{ url: string, type: 'image' | 'video' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const storyInputRef = useRef<HTMLInputElement>(null);
   
   const [profile, setProfile] = useState<ModelProfile>({
     artisticName: "",
@@ -55,10 +65,12 @@ export default function ModeloDashboardPage() {
 
   useEffect(() => {
     const user = localGetUser();
+
     if (!user) {
       router.replace("/");
       return;
     }
+
     if (user.role !== "modelo") {
       if (user.role === "admin") {
         router.replace("/dashboard/admin");
@@ -67,24 +79,71 @@ export default function ModeloDashboardPage() {
       }
       return;
     }
-    
+
     setRole(user.role);
-    
-    const savedProfile = getModelProfile(user.email);
+    setEditingEmail(user.email);
+
+    const savedProfile =
+      getModelProfile(user.email) ||
+      getAllLocalProfiles().find((candidate) => candidate.email === user.email) ||
+      null;
+
     if (savedProfile) {
       setProfile(savedProfile);
+      setEditingName(savedProfile.artisticName || user.email);
     } else {
-      setProfile(p => ({ ...p, artisticName: user.name }));
+      setProfile((p) => ({ ...p, artisticName: user.name }));
+      setEditingName(user.name);
     }
-    
+
     setLoading(false);
   }, [router]);
 
-  const handleSaveProfile = () => {
+  const currentPhotoItems = getProfilePhotoItems(profile);
+
+  const updatePhotoItems = (photoItems: ModelPhoto[]) => {
+    setProfile((prev) => ({
+      ...prev,
+      photoItems,
+      photos: photoItems.map((photo) => photo.url),
+      coverImage: photoItems[0]?.url,
+    }));
+  };
+
+  const handleSaveProfile = async () => {
     const user = localGetUser();
-    if (user && user.email) {
-      saveModelProfile(user.email, profile);
-      toast({ title: "Perfil atualizado com sucesso!" });
+    if (user && editingEmail) {
+      setIsSaving(true);
+      
+      // Simulate a small delay for better UX/feedback
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      const success = saveModelProfile(editingEmail, {
+        ...profile,
+        photoItems: currentPhotoItems,
+        photos: currentPhotoItems.map((photo) => photo.url),
+        coverImage: currentPhotoItems[0]?.url,
+      });
+
+      setIsSaving(false);
+
+      if (success) {
+        toast({
+          title: "Alterações salvas!",
+          description: "Seu perfil foi atualizado com sucesso.",
+        });
+
+        // Redirect to search page with the model ID to open the modal
+        setTimeout(() => {
+          router.push(`/busca?modelId=${encodeURIComponent(editingEmail)}`);
+        }, 1000);
+      } else {
+        toast({
+          title: "Erro ao salvar perfil",
+          description: "O limite de armazenamento foi atingido. Tente remover algumas fotos.",
+          variant: "destructive"
+        });
+      }
     }
   };
 
@@ -144,21 +203,40 @@ export default function ModeloDashboardPage() {
     }
   };
 
-  const processFiles = (files: File[]) => {
-    files.forEach(file => {
-      if (!file.type.startsWith('image/')) return;
+  const processFiles = async (files: File[]) => {
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) continue;
       
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (reader.result) {
-          setProfile(prev => ({
+      try {
+        const compressedDataUrl = await compressImage(file, 900, 900, 0.55);
+        
+        setProfile((prev) => {
+          const prevPhotoItems = getProfilePhotoItems(prev);
+          const nextPhotoItems = [
+            ...prevPhotoItems,
+            {
+              id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+              url: compressedDataUrl,
+              isBlurred: false,
+            },
+          ];
+
+          return {
             ...prev,
-            photos: [...(prev.photos || []), reader.result as string]
-          }));
-        }
-      };
-      reader.readAsDataURL(file);
-    });
+            photoItems: nextPhotoItems,
+            photos: nextPhotoItems.map((photo) => photo.url),
+            coverImage: nextPhotoItems[0]?.url,
+          };
+        });
+      } catch (error) {
+        console.error("Erro ao comprimir imagem:", error);
+        toast({ 
+          title: "Erro ao processar imagem", 
+          description: "Não foi possível comprimir uma das imagens.",
+          variant: "destructive" 
+        });
+      }
+    }
     toast({ title: "Fotos adicionadas à galeria!" });
   };
 
@@ -185,30 +263,41 @@ export default function ModeloDashboardPage() {
     }
   };
 
-  const processStoryFiles = (files: File[]) => {
-    files.forEach(file => {
+  const processStoryFiles = async (files: File[]) => {
+    for (const file of files) {
       // Allow image and video
-      if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) return;
+      if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) continue;
       
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (reader.result) {
-          const newStory: Story = {
-            id: Date.now().toString() + Math.random().toString().slice(2),
-            mediaUrl: reader.result as string,
-            mediaType: file.type.startsWith('video/') ? 'video' : 'image',
-            duration: 5,
-            createdAt: new Date().toISOString()
-          };
-          
-          setProfile(prev => ({
-            ...prev,
-            stories: [...(prev.stories || []), newStory]
-          }));
+      try {
+        let mediaUrl = "";
+        
+        if (file.type.startsWith('image/')) {
+          mediaUrl = await compressImage(file, 720, 1280, 0.5);
+        } else {
+          // For videos we still use FileReader for now
+          mediaUrl = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(file);
+          });
         }
-      };
-      reader.readAsDataURL(file);
-    });
+
+        const newStory: Story = {
+          id: Date.now().toString() + Math.random().toString().slice(2),
+          mediaUrl: mediaUrl,
+          mediaType: file.type.startsWith('video/') ? 'video' : 'image',
+          duration: 5,
+          createdAt: new Date().toISOString()
+        };
+        
+        setProfile(prev => ({
+          ...prev,
+          stories: [...(prev.stories || []), newStory]
+        }));
+      } catch (error) {
+        console.error("Erro ao processar story:", error);
+      }
+    }
     toast({ title: "Stories adicionados!" });
   };
 
@@ -219,10 +308,32 @@ export default function ModeloDashboardPage() {
   };
 
   const removePhoto = (index: number) => {
-    setProfile(prev => ({
-      ...prev,
-      photos: (prev.photos || []).filter((_, i) => i !== index)
-    }));
+    updatePhotoItems(currentPhotoItems.filter((_, i) => i !== index));
+  };
+
+  const setFeaturedPhoto = (index: number) => {
+    const nextItems = [...currentPhotoItems];
+    const [featured] = nextItems.splice(index, 1);
+    if (!featured) return;
+    nextItems.unshift(featured);
+    updatePhotoItems(nextItems);
+  };
+
+  const togglePhotoBlur = (index: number) => {
+    updatePhotoItems(
+      currentPhotoItems.map((photo, photoIndex) =>
+        photoIndex === index ? { ...photo, isBlurred: !photo.isBlurred } : photo
+      )
+    );
+  };
+
+  const movePhoto = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return;
+    const nextItems = [...currentPhotoItems];
+    const [movedPhoto] = nextItems.splice(fromIndex, 1);
+    if (!movedPhoto) return;
+    nextItems.splice(toIndex, 0, movedPhoto);
+    updatePhotoItems(nextItems);
   };
 
   const removeStory = (id: string) => {
@@ -232,6 +343,26 @@ export default function ModeloDashboardPage() {
     }));
   };
 
+  const toggleStoryBlur = (id: string) => {
+    setProfile(prev => ({
+      ...prev,
+      stories: (prev.stories || []).map(s => 
+        s.id === id ? { ...s, isBlurred: !s.isBlurred } : s
+      )
+    }));
+  };
+
+  const moveStory = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return;
+    setProfile(prev => {
+      const nextStories = [...(prev.stories || [])];
+      const [movedStory] = nextStories.splice(fromIndex, 1);
+      if (!movedStory) return prev;
+      nextStories.splice(toIndex, 0, movedStory);
+      return { ...prev, stories: nextStories };
+    });
+  };
+
   const removeVoice = () => {
     setProfile(prev => ({
       ...prev,
@@ -239,7 +370,7 @@ export default function ModeloDashboardPage() {
     }));
   };
 
-  if (loading || role !== "modelo") {
+  if (loading || !role) {
     return (
       <div className="min-h-screen bg-dark-950 flex items-center justify-center text-gray-200">
         Carregando painel...
@@ -251,10 +382,16 @@ export default function ModeloDashboardPage() {
     <div className="min-h-screen bg-dark-950">
       <Header />
       <main className="container mx-auto px-4 py-8 space-y-8">
-        <h1 className="text-3xl font-bold text-white">Dashboard Modelo</h1>
-        <p className="text-gray-400">
-          Gerencie seu perfil, fotos e preferências.
-        </p>
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-white">
+              Dashboard Modelo
+            </h1>
+            <p className="text-gray-400">
+              Gerencie seu perfil, fotos e preferências.
+            </p>
+          </div>
+        </div>
 
         <Tabs defaultValue="dashboard" className="space-y-6">
           <TabsList className="bg-dark-900 border-gray-800">
@@ -298,9 +435,19 @@ export default function ModeloDashboardPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                    {profile.photos?.map((photo, index) => (
+                    {currentPhotoItems.map((photo, index) => (
                       <div key={index} className="relative aspect-square rounded-md overflow-hidden border border-gray-700 group">
-                        <Image src={photo} alt={`Foto ${index + 1}`} fill sizes="(max-width: 768px) 50vw, 25vw" className="object-cover" />
+                        <Image src={photo.url} alt={`Foto ${index + 1}`} fill sizes="(max-width: 768px) 50vw, 25vw" className={photo.isBlurred ? "object-cover blur-md" : "object-cover"} />
+                        {index === 0 && (
+                          <span className="absolute left-1 top-1 rounded bg-primary px-2 py-1 text-[10px] font-semibold text-white">
+                            Destaque
+                          </span>
+                        )}
+                        {photo.isBlurred && (
+                          <span className="absolute bottom-1 left-1 rounded bg-black/70 px-2 py-1 text-[10px] font-semibold text-white">
+                            Blur cliente
+                          </span>
+                        )}
                         <button 
                           onClick={() => removePhoto(index)}
                           className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -355,8 +502,12 @@ export default function ModeloDashboardPage() {
                   />
                   <p className="text-xs text-gray-500">Adicione fotos ou vídeos curtos como stories.</p>
                   
-                  <Button onClick={handleSaveProfile} className="w-full bg-primary hover:bg-primary/90 text-white mt-4">
-                    Salvar Alterações
+                  <Button 
+                    onClick={handleSaveProfile} 
+                    disabled={isSaving}
+                    className="w-full bg-primary hover:bg-primary/90 text-white mt-4"
+                  >
+                    {isSaving ? "Salvando..." : "Salvar Alterações"}
                   </Button>
                 </CardContent>
               </Card>
@@ -487,7 +638,7 @@ export default function ModeloDashboardPage() {
                   <div className="flex justify-between items-center">
                     <Label className="text-white text-lg">Galeria de Fotos</Label>
                     <span className="text-xs text-gray-400">
-                      {profile.photos?.length || 0} fotos
+                      {currentPhotoItems.length} fotos
                     </span>
                   </div>
                   
@@ -522,9 +673,9 @@ export default function ModeloDashboardPage() {
                           {isDragging ? 'Solte as fotos aqui' : 'Escolha fotos'}
                         </p>
                         <p className="text-sm text-gray-500">
-                          {(!profile.photos || profile.photos.length === 0) 
+                          {currentPhotoItems.length === 0 
                             ? "Nenhuma foto selecionada" 
-                            : "Arraste suas fotos para cá ou clique para selecionar"
+                            : "Arraste para enviar, reordenar e definir a capa"
                           }
                         </p>
                       </div>
@@ -532,25 +683,88 @@ export default function ModeloDashboardPage() {
                   </div>
 
                   {/* Grid de Visualização */}
-                  {profile.photos && profile.photos.length > 0 && (
+                  {currentPhotoItems.length > 0 && (
                     <div className="space-y-2 animate-in fade-in duration-500">
                       <Label className="text-gray-300">Fotos Selecionadas</Label>
+                      <p className="text-xs text-gray-500">
+                        A primeira foto e a foto de destaque. Arraste os cards para reordenar e use o cadeado para aplicar blur ao cliente.
+                      </p>
                       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                        {profile.photos.map((photo, index) => (
-                          <div key={index} className="relative aspect-[3/4] rounded-lg overflow-hidden border border-gray-700 group shadow-sm hover:shadow-md transition-all">
-                            <Image src={photo} alt={`Foto ${index + 1}`} fill sizes="(max-width: 768px) 50vw, 20vw" className="object-cover transition-transform duration-300 group-hover:scale-105" />
+                        {currentPhotoItems.map((photo, index) => (
+                          <div
+                            key={photo.id}
+                            draggable
+                            onDragStart={() => setDraggedPhotoId(photo.id)}
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={() => {
+                              if (!draggedPhotoId) return;
+                              const fromIndex = currentPhotoItems.findIndex((item) => item.id === draggedPhotoId);
+                              movePhoto(fromIndex, index);
+                              setDraggedPhotoId(null);
+                            }}
+                            onDragEnd={() => setDraggedPhotoId(null)}
+                            onClick={() => setPreviewMedia({ url: photo.url, type: 'image' })}
+                            className="relative aspect-[3/4] rounded-lg overflow-hidden border border-gray-700 group shadow-sm hover:shadow-md transition-all cursor-zoom-in"
+                          >
+                            <Image src={photo.url} alt={`Foto ${index + 1}`} fill sizes="(max-width: 768px) 50vw, 20vw" className={`${photo.isBlurred ? "blur-md " : ""}object-cover transition-transform duration-300 group-hover:scale-105`} />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                            <Button
-                              variant="destructive"
-                              size="icon"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                removePhoto(index);
-                              }}
-                              className="absolute top-2 right-2 h-8 w-8 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-lg hover:scale-110"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            <div className="absolute left-2 top-2 flex items-center gap-2 z-20">
+                              <div className="cursor-grab active:cursor-grabbing rounded-full bg-black/70 p-1.5 text-white hover:bg-primary transition-colors shadow-lg">
+                                <GripVertical className="h-4 w-4" />
+                              </div>
+                              {index === 0 && (
+                                <span className="rounded bg-primary px-2 py-1 text-[10px] font-semibold text-white shadow-lg">
+                                  <Star className="mr-1 inline h-3 w-3" />
+                                  Capa
+                                </span>
+                              )}
+                            </div>
+                            <div className="absolute top-2 right-2 flex flex-col gap-2 z-20">
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="icon"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removePhoto(index);
+                                }}
+                                className="h-8 w-8 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-lg hover:scale-110"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="icon"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  togglePhotoBlur(index);
+                                }}
+                                className={cn(
+                                  "h-8 w-8 rounded-full transition-all duration-200 shadow-lg hover:scale-110",
+                                  photo.isBlurred 
+                                    ? "bg-amber-500 text-black opacity-100" 
+                                    : "bg-black/70 text-white opacity-0 group-hover:opacity-100"
+                                )}
+                              >
+                                {photo.isBlurred ? <Lock className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />}
+                              </Button>
+                            </div>
+                            
+                            <div className="absolute bottom-2 left-2 right-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100 z-20">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="secondary"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setFeaturedPhoto(index);
+                                }}
+                                className="w-full bg-black/70 text-white hover:bg-black backdrop-blur-sm"
+                              >
+                                Definir como Capa
+                              </Button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -558,6 +772,124 @@ export default function ModeloDashboardPage() {
                   )}
                 </div>
 
+                {/* Stories */}
+                <div className="space-y-4 pt-6 border-t border-gray-800">
+                  <div className="flex justify-between items-center">
+                    <Label className="text-white text-lg">Stories (24h)</Label>
+                    <span className="text-xs text-gray-400">
+                      {profile.stories?.length || 0} stories
+                    </span>
+                  </div>
+
+                  {/* Upload de Stories */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="border-2 border-dashed border-gray-700 rounded-lg p-6 text-center hover:bg-dark-800 transition-colors cursor-pointer" onClick={() => storyInputRef.current?.click()}>
+                      <Input
+                        type="file"
+                        multiple
+                        accept="image/*,video/*"
+                        onChange={handleStoryUpload}
+                        className="hidden"
+                        ref={storyInputRef}
+                      />
+                      <div className="flex flex-col items-center gap-2">
+                        <span className="bg-primary/20 text-primary p-2 rounded-full">
+                          <PlayCircle className="h-5 w-5" />
+                        </span>
+                        <span className="text-white font-medium text-sm">Adicionar Stories</span>
+                        <span className="text-xs text-gray-500">Imagens ou Vídeos</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Grid de Stories com Drag & Drop */}
+                  {profile.stories && profile.stories.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-gray-500">
+                        Arraste para reordenar a sequência de visualização.
+                      </p>
+                      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                        {profile.stories.map((story, index) => (
+                          <div
+                            key={story.id}
+                            draggable
+                            onDragStart={() => setDraggedStoryId(story.id)}
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={() => {
+                              if (!draggedStoryId) return;
+                              const fromIndex = profile.stories?.findIndex((s) => s.id === draggedStoryId);
+                              if (fromIndex !== undefined && fromIndex !== -1) {
+                                moveStory(fromIndex, index);
+                              }
+                              setDraggedStoryId(null);
+                            }}
+                            onDragEnd={() => setDraggedStoryId(null)}
+                            onClick={() => setPreviewMedia({ url: story.mediaUrl, type: story.mediaType })}
+                            className="relative aspect-[9/16] rounded-lg overflow-hidden border border-gray-700 group bg-black shadow-sm cursor-zoom-in"
+                          >
+                            {story.mediaType === 'image' ? (
+                              <Image 
+                                src={story.mediaUrl} 
+                                alt={`Story ${index + 1}`} 
+                                fill 
+                                className={cn("object-cover", story.isBlurred && "blur-md")} 
+                              />
+                            ) : (
+                              <video 
+                                src={story.mediaUrl} 
+                                className={cn("w-full h-full object-cover", story.isBlurred && "blur-md")} 
+                              />
+                            )}
+                            
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                            
+                            <div className="absolute left-1.5 top-1.5 z-20">
+                              <div className="cursor-grab active:cursor-grabbing rounded-full bg-black/70 p-1 text-white hover:bg-primary transition-colors shadow-lg">
+                                <GripVertical className="h-3 w-3" />
+                              </div>
+                            </div>
+
+                            <div className="absolute top-1.5 right-1.5 flex flex-col gap-1.5 z-20">
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="icon"
+                                onClick={() => removeStory(story.id)}
+                                className="h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-lg hover:scale-110"
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="icon"
+                                onClick={() => toggleStoryBlur(story.id)}
+                                className={cn(
+                                  "h-6 w-6 rounded-full transition-all duration-200 shadow-lg hover:scale-110",
+                                  story.isBlurred 
+                                    ? "bg-amber-500 text-black opacity-100" 
+                                    : "bg-black/70 text-white opacity-0 group-hover:opacity-100"
+                                )}
+                              >
+                                {story.isBlurred ? <Lock className="h-3 w-3" /> : <LockOpen className="h-3 w-3" />}
+                              </Button>
+                            </div>
+
+                            <div className="absolute bottom-1 right-1 bg-black/50 text-white text-[9px] px-1 rounded z-20 backdrop-blur-sm">
+                               {story.mediaType === 'video' ? "VÍDEO" : "FOTO"}
+                            </div>
+
+                            {story.isBlurred && (
+                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-black/20 z-10">
+                                <Lock className="h-5 w-5 text-white/70" />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
 
@@ -630,13 +962,47 @@ export default function ModeloDashboardPage() {
             </Card>
 
             <div className="flex justify-end">
-              <Button onClick={handleSaveProfile} size="lg" className="bg-primary hover:bg-primary/90 text-white">
-                Salvar Alterações
+              <Button 
+                onClick={handleSaveProfile} 
+                size="lg" 
+                disabled={isSaving}
+                className="bg-primary hover:bg-primary/90 text-white"
+              >
+                {isSaving ? "Salvando..." : "Salvar Alterações"}
               </Button>
             </div>
           </TabsContent>
         </Tabs>
       </main>
+
+      {/* Media Preview Modal */}
+      <Dialog open={!!previewMedia} onOpenChange={(open) => !open && setPreviewMedia(null)}>
+        <DialogContent className="max-w-3xl bg-dark-900 border-gray-800 p-0 overflow-hidden">
+          <DialogHeader className="p-4 border-b border-gray-800">
+            <DialogTitle className="text-white">Pré-visualização de Arquivo</DialogTitle>
+          </DialogHeader>
+          <div className="relative aspect-video w-full bg-black flex items-center justify-center">
+            {previewMedia?.type === 'image' ? (
+              <Image 
+                src={previewMedia.url} 
+                alt="Preview" 
+                fill 
+                className="object-contain" 
+              />
+            ) : (
+              <video 
+                src={previewMedia?.url} 
+                controls 
+                autoPlay 
+                className="max-h-full max-w-full" 
+              />
+            )}
+          </div>
+          <div className="p-4 flex justify-end">
+            <Button variant="secondary" onClick={() => setPreviewMedia(null)}>Fechar</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

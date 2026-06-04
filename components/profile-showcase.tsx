@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { getAllLocalProfiles } from "@/lib/local-auth";
 import { Model } from "@/components/model-details-modal";
 import { ModelDetailsModal } from "@/components/model-details-modal";
+import { mapLocalProfileToModel } from "@/lib/model-mappers";
 
 export function ProfileShowcase() {
   const [profiles, setProfiles] = useState<Model[]>([]);
@@ -16,21 +17,11 @@ export function ProfileShowcase() {
   useEffect(() => {
     const localProfiles = getAllLocalProfiles();
     const mappedModels: Model[] = localProfiles.map((profile, index) => {
-        const id = profile.email;
         return {
-          id: id,
-          name: profile.artisticName,
-          city: profile.city,
-          price: profile.priceRange,
-          imageUrl: profile.coverImage || profile.photos?.[0] || "/placeholder.svg?height=400&width=300",
-          age: parseInt(profile.age) || 20,
+          ...mapLocalProfileToModel(profile),
           rating: 4.9,
           reviews: 20,
           isVerified: true,
-          bio: profile.bio,
-          services: profile.services,
-          fetishes: profile.fetishes,
-          gallery: profile.photos || [],
           characteristics: {
              hairColor: profile.characteristics.hairColor,
              ethnicity: profile.characteristics.ethnicity,

@@ -8,6 +8,7 @@ import { Model } from "@/components/model-details-modal";
 import { SubscriptionModal } from "@/components/subscription-modal";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { LoginForm } from "@/components/login-form";
+import { mapLocalProfileToModel } from "@/lib/model-mappers";
 
 export default function StoriesPage() {
   const router = useRouter();
@@ -28,15 +29,7 @@ export default function StoriesPage() {
     const localProfiles = getAllLocalProfiles();
     const profilesWithStories = localProfiles
       .filter(p => p.stories && p.stories.length > 0)
-      .map(p => ({
-        id: p.email,
-        name: p.artisticName,
-        city: p.city,
-        price: p.priceRange,
-        imageUrl: p.coverImage || p.photos?.[0] || "/placeholder.svg?height=400&width=300",
-        age: parseInt(p.age) || 20,
-        stories: p.stories || []
-      } as Model));
+      .map(p => mapLocalProfileToModel(p));
 
     setProfiles(profilesWithStories);
 
@@ -73,14 +66,8 @@ export default function StoriesPage() {
 
     setNeedsLogin(false);
     
-    const hasVipAccess = user.plan === "vip";
-    const isSubscribed = user.subscribedModelIds?.includes(currentProfile.id);
-    
-    if (!hasVipAccess && !isSubscribed) {
-      setNeedsSubscription(true);
-    } else {
-      setNeedsSubscription(false);
-    }
+    // We don't block the whole viewer anymore, individual stories will be blurred if needed
+    setNeedsSubscription(false);
 
   }, [currentIndex, profiles, currentUser?.subscribedModelIds?.length]); // Re-check if subscriptions change
 
@@ -106,6 +93,7 @@ export default function StoriesPage() {
   if (profiles.length === 0) return null;
 
   const currentProfile = profiles[currentIndex];
+  const hasAccess = currentUser?.plan === "vip" || currentUser?.role === "admin" || currentUser?.role === "modelo" || currentUser?.subscribedModelIds?.includes(currentProfile.id);
 
   // Render Login Modal if needed
   if (needsLogin) {
@@ -159,6 +147,8 @@ export default function StoriesPage() {
         onPrevProfile={handlePrevProfile}
         modelName={currentProfile.name}
         modelImage={currentProfile.imageUrl}
+        modelId={currentProfile.id}
+        hasAccess={!!hasAccess}
       />
     </div>
   );

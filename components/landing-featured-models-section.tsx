@@ -11,6 +11,7 @@ import { ModelDetailsModal, Model } from "@/components/model-details-modal";
 import { useFavorites } from "@/lib/favorites";
 import { cn } from "@/lib/utils";
 import { getAllLocalProfiles, ModelProfile } from "@/lib/local-auth";
+import { mapLocalProfileToModel } from "@/lib/model-mappers";
 
 export function LandingFeaturedModelsSection() {
   const [selectedModel, setSelectedModel] = useState<Model | null>(null);
@@ -24,23 +25,11 @@ export function LandingFeaturedModelsSection() {
     
     // Transform ModelProfile to Model
     const mappedModels: Model[] = localProfiles.map((profile, index) => {
-       // Check if profile has an email attached (it should from our implementation)
-       const id = profile.email;
-       
        return {
-         id: id,
-         name: profile.artisticName,
-         city: profile.city,
-         price: profile.priceRange,
-         imageUrl: profile.coverImage || profile.photos?.[0] || "/placeholder.svg?height=400&width=300",
-         age: parseInt(profile.age) || 20,
+         ...mapLocalProfileToModel(profile),
          rating: 5.0, // Default for now
          reviews: Math.floor(Math.random() * 50) + 10, // Random reviews count
          isVerified: true,
-         bio: profile.bio,
-         services: profile.services,
-         fetishes: profile.fetishes,
-         gallery: profile.photos || [],
          characteristics: {
             hairColor: profile.characteristics.hairColor,
             ethnicity: profile.characteristics.ethnicity,

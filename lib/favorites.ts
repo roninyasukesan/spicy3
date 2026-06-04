@@ -47,7 +47,11 @@ export function toggleLocalFavorite(modelId: string): boolean {
     isNowFavorite = true;
   }
 
-  localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
+  try {
+    localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
+  } catch (error) {
+    console.error("Failed to save favorites to localStorage:", error);
+  }
   
   // Dispatch event for other components to update
   window.dispatchEvent(new Event(FAVORITES_UPDATED_EVENT));

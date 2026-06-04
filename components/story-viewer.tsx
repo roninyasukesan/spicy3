@@ -3,10 +3,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { X, ChevronLeft, ChevronRight } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Lock } from "lucide-react";
 import Image from "next/image";
+import { cn } from "@/lib/utils";
 import { Story } from "@/lib/local-auth";
 import { Progress } from "@/components/ui/progress";
+import { useRouter } from "next/navigation";
 
 interface StoryViewerProps {
   stories: Story[];
@@ -17,6 +19,8 @@ interface StoryViewerProps {
   onPrevProfile?: () => void;
   modelName: string;
   modelImage: string;
+  modelId: string;
+  hasAccess: boolean;
 }
 
 export function StoryViewer({
@@ -27,13 +31,24 @@ export function StoryViewer({
   onNextProfile,
   onPrevProfile,
   modelName,
-  modelImage
+  modelImage,
+  modelId,
+  hasAccess
 }: StoryViewerProps) {
   const [currentIndex, setCurrentIndex] = useState(initialStoryIndex);
   const [progress, setProgress] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const router = useRouter();
 
   const currentStory = stories[currentIndex];
+  const isBlurred = currentStory?.isBlurred && !hasAccess;
+
+  // Fix: StoryViewer should probably just take a callback for name click
+  // or use router directly if we want it to be more self-contained.
+  const handleNameClick = () => {
+    router.push(`/busca?modelId=${encodeURIComponent(modelId)}`);
+  };
+
   const duration = (currentStory?.duration || 5) * 1000; // ms
   const intervalTime = 50; // Update progress every 50ms
 
@@ -113,9 +128,17 @@ export function StoryViewer({
 
   if (!stories.length || !currentStory) return null;
 
+  const isVideoStory = currentStory.mediaType === "video";
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md p-0 h-[80vh] bg-black border-none overflow-hidden sm:h-[90vh] sm:rounded-xl">
+      <DialogContent
+        className={
+          isVideoStory
+            ? "h-[100dvh] w-[100vw] max-w-[100vw] border-none bg-black p-0 overflow-hidden rounded-none sm:h-[92vh] sm:max-w-[96vw] sm:rounded-xl"
+            : "h-[100dvh] w-[100vw] max-w-[100vw] border-none bg-black p-0 overflow-hidden rounded-none sm:h-[90vh] sm:max-w-[min(92vw,480px)] sm:rounded-xl"
+        }
+      >
         <DialogTitle className="sr-only">{modelName} Stories</DialogTitle>
         {/* Progress Bars */}
         <div className="absolute top-4 left-0 w-full px-4 z-50 flex gap-1">
@@ -133,7 +156,15 @@ export function StoryViewer({
 
         {/* Header */}
         <div className="absolute top-8 left-0 w-full px-4 z-50 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div
+            className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleNameClick();
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+          >
             <div className="relative w-8 h-8 rounded-full overflow-hidden border border-white">
               <Image src={modelImage} alt={modelName} fill className="object-cover" />
             </div>
@@ -154,7 +185,7 @@ export function StoryViewer({
 
         {/* Content */}
         <div 
-          className="relative w-full h-full bg-black flex items-center justify-center cursor-pointer"
+          className="relative flex h-full w-full cursor-pointer items-center justify-center bg-black pt-20 pb-6"
           onMouseDown={() => setIsPaused(true)}
           onMouseUp={() => setIsPaused(false)}
           onTouchStart={() => setIsPaused(true)}
@@ -165,25 +196,51 @@ export function StoryViewer({
           <div className="absolute inset-y-0 right-0 w-1/3 z-10" onClick={(e) => { e.stopPropagation(); handleNext(); }} />
 
           {currentStory.mediaType === 'image' ? (
-            <div className="relative w-full h-full">
+            <div className="relative h-full w-full">
                <Image 
                  src={currentStory.mediaUrl} 
-                 alt="Story" 
+                 alt={`Story ${currentIndex + 1}`} 
                  fill 
-                 className="object-cover"
+                 className={cn("object-contain", isBlurred && "blur-2xl")}
                  priority
                />
             </div>
           ) : (
-            <video 
-              src={currentStory.mediaUrl}
-              className="w-full h-full object-cover"
-              autoPlay
-              muted // Muted for autoplay policy, maybe add unmute button
-              playsInline
-              loop={false}
-              onEnded={handleNext}
-            />
+            <div className="flex h-full w-full items-center justify-center px-2 sm:px-4">
+              <video 
+                src={currentStory.mediaUrl}
+                className={cn(
+                  "h-auto w-auto max-h-[calc(100dvh-7rem)] max-w-[calc(100vw-1rem)] object-contain sm:max-h-[calc(92vh-7rem)] sm:max-w-[94vw]",
+                  isBlurred && "blur-2xl"
+                )}
+                autoPlay
+                muted
+                playsInline
+                loop={false}
+                onEnded={handleNext}
+              />
+            </div>
+          )}
+
+          {/* Blurred Content Overlay */}
+          {isBlurred && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/20 z-10">
+              <div className="bg-black/60 p-6 rounded-2xl border border-white/20 backdrop-blur-md flex flex-col items-center gap-4 text-center max-w-[80%]">
+                <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center border border-primary/30">
+                  <Lock className="h-8 w-8 text-primary" />
+                </div>
+                <div>
+                  <h3 className="text-white font-bold text-lg">Conteúdo Exclusivo</h3>
+                  <p className="text-gray-300 text-sm">Assine para desbloquear este story e muito mais.</p>
+                </div>
+                <Button 
+                  onClick={() => router.push(`/busca?modelId=${encodeURIComponent(modelId)}`)}
+                  className="bg-primary hover:bg-primary/90 text-white w-full"
+                >
+                  Ver Planos
+                </Button>
+              </div>
+            </div>
           )}
         </div>
       </DialogContent>

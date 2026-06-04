@@ -13,11 +13,12 @@ import { PhysicalCharacteristics } from "@/lib/physical-characteristics";
 import { getAllLocalProfiles } from "@/lib/local-auth";
 import { StoryViewer } from "@/components/story-viewer";
 import { cn } from "@/lib/utils";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Slider } from "@/components/ui/slider"
 import { SearchFilters } from "@/components/search-filters"
 import { locations } from "@/lib/brazil-locations";
+import { mapLocalProfileToModel } from "@/lib/model-mappers";
 
 interface SearchResultsProps {
   filters: SearchFiltersState;
@@ -32,12 +33,24 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
   const [filteredProfiles, setFilteredProfiles] = useState<Model[]>([]);
   const [profiles, setProfiles] = useState<Model[]>([]);
   const [sortBy, setSortBy] = useState<string>("relevance");
+  const searchParams = useSearchParams();
+  const modelIdFromUrl = searchParams.get("modelId");
+
+  useEffect(() => {
+    if (modelIdFromUrl && profiles.length > 0) {
+      const model = profiles.find(p => p.id === modelIdFromUrl);
+      if (model) {
+        setSelectedModel(model);
+        setIsModalOpen(true);
+      }
+    }
+  }, [modelIdFromUrl, profiles]);
 
   useEffect(() => {
     const localProfiles = getAllLocalProfiles();
     const mapped: Model[] = localProfiles.map((p, index) => {
-        const id = p.email;
-        
+        const baseModel = mapLocalProfileToModel(p);
+
         // Normalize characteristics to match filter options
         const normalizeHairColor = (color?: string) => {
            if (!color) return "Morena";
@@ -69,21 +82,11 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
         };
 
         return {
-            id: id,
-            name: p.artisticName,
-            city: p.city,
-            price: p.priceRange,
-            imageUrl: p.coverImage || p.photos?.[0] || "/placeholder.svg?height=400&width=300",
-            age: parseInt(p.age) || 20,
+            ...baseModel,
             rating: parseFloat((Math.random() * 1.5 + 3.5).toFixed(1)), 
             reviews: Math.floor(Math.random() * 50) + 10,
             isVerified: true,
             isOnline: Math.random() > 0.7,
-            bio: p.bio,
-            services: p.services,
-            fetishes: p.fetishes,
-            gallery: p.photos || [],
-            stories: p.stories || [],
             characteristics: {
                 hairColor: normalizeHairColor(p.characteristics.hairColor),
                 ethnicity: p.characteristics.ethnicity || "Branca",

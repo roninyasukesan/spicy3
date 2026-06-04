@@ -103,7 +103,11 @@ export function sendMessage(senderId: string, receiverId: string, encryptedData:
   };
 
   messages.push(newMessage);
-  localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+  try {
+    localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+  } catch (error) {
+    console.error("Failed to save chat messages to localStorage:", error);
+  }
   
   notifyChatUpdate();
   
@@ -217,7 +221,11 @@ export function markAsRead(userId: string, contactId: string) {
   });
 
   if (changed) {
-    localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+    try {
+      localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+    } catch (error) {
+      console.error("Failed to save chat messages to localStorage:", error);
+    }
     notifyChatUpdate();
   }
 }
@@ -259,7 +267,11 @@ function saveMessageLimits(userId: string, limits: MessageLimit[]) {
   if (typeof window === 'undefined') return;
   
   const key = `${MESSAGE_LIMITS_KEY}_${userId.toLowerCase()}`;
-  localStorage.setItem(key, JSON.stringify(limits));
+  try {
+    localStorage.setItem(key, JSON.stringify(limits));
+  } catch (error) {
+    console.error("Failed to save message limits to localStorage:", error);
+  }
 }
 
 /**
