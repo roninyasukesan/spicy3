@@ -72,8 +72,8 @@ export function Header() {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link href="/" className="flex items-center space-x-2">
-            <Flame className="h-8 w-8 text-primary-500" />
-            <span className="text-2xl font-bold gradient-text">Spicy Models</span>
+            <Flame className="h-8 w-8 text-red-600 fill-red-600" />
+            <span className="text-2xl font-bold text-white">Spicy Models</span>
           </Link>
 
           {/* Desktop Navigation */}

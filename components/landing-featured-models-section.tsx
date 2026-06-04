@@ -75,8 +75,8 @@ export function LandingFeaturedModelsSection() {
         <AnimatedText>
           <h2 className="text-4xl font-bold text-center text-white mb-12">Modelos em Destaque</h2>
         </AnimatedText>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {models.slice(0, 3).map((model, index) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          {models.slice(0, 4).map((model, index) => (
             <AnimatedText key={model.id} delay={index * 0.1}>
               <Card className="bg-dark-900 border-gray-800 text-white rounded-lg overflow-hidden shadow-lg transform hover:-translate-y-2 transition-transform duration-300">
                 <CardContent className="p-0">

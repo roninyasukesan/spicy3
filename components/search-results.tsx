@@ -188,8 +188,7 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
         if (filters.characteristics.age.length > 0) {
           // This matches the age range string, but could be more sophisticated (checking actual age number)
           // For now, we match the range tag if it exists, or infer from age number
-          if (filters.characteristics.age.length > 0) {
-            let ageCategory = "";
+          let ageCategory = "";
             if (profile.age >= 18 && profile.age <= 22) ageCategory = "18–22";
             else if (profile.age >= 23 && profile.age <= 27) ageCategory = "23–27";
             else if (profile.age >= 28 && profile.age <= 35) ageCategory = "28–35";
@@ -198,7 +197,6 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
             if (!filters.characteristics.age.includes(ageCategory)) {
               return false;
             }
-          }
         }
 
         // Eyes
@@ -295,6 +293,7 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
                   src={profile.imageUrl}
                   alt={profile.name}
                   fill
+                  sizes="(max-width: 768px) 64px, 80px"
                   className="object-cover transition-transform duration-300 group-hover:scale-110"
                 />
               </div>
@@ -402,7 +401,7 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
           <span className="text-gray-400 text-sm">Ordenar por:</span>
           <select 
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSortBy(e.target.value)}
             className="bg-dark-700 border border-gray-600 rounded px-3 py-1 text-white text-sm w-full sm:w-auto"
           >
             <option value="relevance">Mais relevantes</option>
@@ -416,7 +415,7 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
 
       {/* Results Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {filteredProfiles.map((profile, index) => {
+        {filteredProfiles.map((profile: Model, index: number) => {
           const hasStories = profile.stories && profile.stories.length > 0;
           return (
           <AnimatedText key={profile.id} delay={index * 0.1 + 0.2}>
@@ -425,7 +424,7 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
                 <div className="flex flex-col sm:flex-row">
                   {/* Image */}
                   <div
-                    className="relative w-full h-64 sm:w-48 sm:h-auto flex-shrink-0 cursor-pointer overflow-hidden"
+                    className="relative w-full h-64 sm:w-48 sm:h-auto flex-shrink-0 cursor-pointer overflow-hidden group"
                     onClick={() => handleOpenModal(profile)}
                   >
                     <Image
@@ -441,7 +440,7 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
                            size="sm" 
                            variant="secondary"
                            className="bg-pink-500/80 hover:bg-pink-500 text-white rounded-full px-4"
-                           onClick={(e) => {
+                           onClick={(e: React.MouseEvent) => {
                              e.stopPropagation();
                              handleOpenStoriesPage(profile.id);
                            }}
@@ -459,15 +458,15 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
                     {/* Status Badges */}
                     <div className="absolute top-3 left-3 flex flex-col gap-1">
                       {profile.isOnline && (
-                        <Badge className="bg-green-500/90 hover:bg-green-600 text-white text-xs border-none backdrop-blur-sm flex items-center gap-1.5">
+                        <div className="bg-green-500/90 hover:bg-green-600 text-white text-xs border-none backdrop-blur-sm flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-semibold">
                           <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                           Online
-                        </Badge>
+                        </div>
                       )}
                       {(profile.isVerified ?? true) && (
-                        <Badge className="bg-blue-500/90 hover:bg-blue-600 text-white text-xs border-none backdrop-blur-sm">
+                        <div className="bg-blue-500/90 hover:bg-blue-600 text-white text-xs border-none backdrop-blur-sm px-2.5 py-0.5 rounded-full font-semibold">
                           Verificado
-                        </Badge>
+                        </div>
                       )}
                     </div>
 
@@ -476,7 +475,7 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
                       size="sm"
                       variant="ghost"
                       className="absolute top-3 right-3 h-7 w-7 p-0 bg-black/50 hover:bg-black/70"
-                      onClick={(e) => {
+                      onClick={(e: React.MouseEvent) => {
                         e.stopPropagation()
                         // Handle favorite logic
                       }}
@@ -512,15 +511,15 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
                     </p>
 
                     <div className="flex flex-wrap gap-2 mb-4">
-                      {profile.services?.slice(0, 3).map((service) => (
-                        <Badge key={service} variant="secondary" className="bg-dark-700 hover:bg-dark-600 text-gray-300 border-none text-xs">
+                      {profile.services?.slice(0, 3).map((service: string) => (
+                        <div key={service} className="bg-dark-700 hover:bg-dark-600 text-gray-300 border-none text-xs px-2.5 py-0.5 rounded-full font-semibold">
                           {service}
-                        </Badge>
+                        </div>
                       ))}
                       {(profile.services?.length || 0) > 3 && (
-                        <Badge variant="secondary" className="bg-dark-700 text-gray-300 border-none text-xs">
+                        <div className="bg-dark-700 text-gray-300 border-none text-xs px-2.5 py-0.5 rounded-full font-semibold">
                           +{(profile.services?.length || 0) - 3}
-                        </Badge>
+                        </div>
                       )}
                     </div>
 

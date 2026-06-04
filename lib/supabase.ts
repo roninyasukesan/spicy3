@@ -3,6 +3,10 @@ import { createClient } from '@supabase/supabase-js';
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
+export function hasSupabaseConfig() {
+  return Boolean(url && key);
+}
+
 function makeMock(): any {
   return {
     auth: {
@@ -57,4 +61,4 @@ function makeMock(): any {
   };
 }
 
-export const supabase: any = url && key ? createClient(url, key) : makeMock();
+export const supabase: any = hasSupabaseConfig() ? createClient(url, key) : makeMock();

@@ -1,4 +1,5 @@
 import { type UserRole } from "@/lib/utils"
+import { mockProfiles } from "./mock-profiles"
 
 export type LocalUser = {
   id?: string
@@ -479,12 +480,43 @@ export function saveModelProfile(email: string, profile: ModelProfile) {
 export function getAllLocalProfiles(): (ModelProfile & { email: string })[] {
   const profilesMap: Record<string, ModelProfile & { email: string }> = {}
 
-  // 1. Add seed profiles
+  // 1. Add mock profiles from mock-profiles.ts
+  mockProfiles.forEach(mp => {
+    const email = `mock${mp.id}@spicy.com`;
+    profilesMap[email] = {
+      artisticName: mp.name,
+      phone: "",
+      city: mp.city,
+      age: mp.age.toString(),
+      bio: mp.bio || "",
+      services: mp.services || [],
+      fetishes: mp.fetishes || [],
+      exclusions: [],
+      priceRange: mp.price,
+      characteristics: {
+        hairColor: mp.characteristics?.hairColor || "Morena",
+        ethnicity: mp.characteristics?.ethnicity || "Branca",
+        bodyType: mp.characteristics?.bodyType || "Curvilínea",
+        height: mp.characteristics?.height || "1.70m",
+        age: mp.age.toString(),
+        eyes: mp.characteristics?.eyes || "Castanho",
+        breasts: mp.characteristics?.breasts || "Médios",
+        tattoos: mp.characteristics?.tattoos || "Não",
+        piercings: mp.characteristics?.piercings || "Não"
+      },
+      photos: mp.gallery || [mp.imageUrl],
+      coverImage: mp.imageUrl,
+      email: email,
+      stories: []
+    };
+  })
+
+  // 2. Add seed profiles (overriding if same email, but they are different)
   Object.keys(SEED_PROFILES).forEach(email => {
     profilesMap[email] = { ...SEED_PROFILES[email], email }
   })
 
-  // 2. Override with local storage profiles (merging to keep new seed fields)
+  // 3. Override with local storage profiles (merging to keep new seed fields)
   if (typeof window !== "undefined") {
     const allProfilesRaw = window.localStorage.getItem(MODEL_PROFILE_KEY)
     if (allProfilesRaw) {
