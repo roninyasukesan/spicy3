@@ -1,10 +1,35 @@
 # 📝 Registro de Modificações Técnicas (DOCUMENTATION_MODIFICATIONS)
 
-Este documento registra as decisões arquiteturais, melhorias de performance e implementações de UX realizadas recentemente no projeto. Utilize-o para entender o "porquê" das soluções atuais.
+Este documento registra as decisões arquiteturais, melhorias de performance e implementações de UX realizadas no projeto, servindo como um guia histórico de evolução do sistema.
 
 ---
 
-## 🎨 Frontend & UX
+## 📅 [03/06/2026] - Modernização e Restauração Estrutural
+
+#### [Atualização da Arquitetura: Next.js 16.2.7 & React 19.2.6]
+*   **Estado Anterior:** O projeto operava em versões instáveis de desenvolvimento (Next.js 16.1.x), com modelo de cache implícito e performance de dev limitada.
+*   **Ação:** Migração total para as versões estáveis **Next.js 16.2.7** e **React 19.2.6**. Ativação do `cacheComponents: true` no `next.config.mjs`.
+*   **Por que:** O Next.js 16 inverte o paradigma de cache (Dynamic by Default). Agora, o cache é explícito via diretiva `"use cache"`, eliminando comportamentos imprevisíveis de dados estáticos onde deveriam ser dinâmicos.
+*   **Resultado:** Build mais rápido, suporte estável a Turbopack e arquitetura preparada para o futuro.
+
+#### [Otimização para Agentes de IA (AI-Native Dev)]
+*   **Estado Anterior:** Não havia diretrizes claras para interações de agentes de IA com o código, resultando em sugestões que às vezes quebravam padrões de cache ou estrutura.
+*   **Ação:** Criação do [AGENTS.md](file:///d:/spicy3/spicy3/AGENTS.md) e ativação do **Browser Log Forwarding**.
+*   **Resultado:** Agentes de IA agora recebem erros do navegador diretamente no terminal, facilitando a depuração autônoma e garantindo que sigam as regras de "Explicit Caching" do Next.js 16.
+
+#### [Restauração de UI/UX Original com Sincronização de Dados]
+*   **Estado Anterior:** Alterações experimentais haviam descaracterizado a UI (cores, logo e modais) e havia risco de perda dos novos perfis de modelos ao restaurar a branch `main`.
+*   **Ação:** Restauração total dos componentes visuais para o padrão estável da branch `main`, seguida da reintegração manual dos 14 novos perfis de `mock-profiles.ts` no `lib/local-auth.ts`.
+*   **Resultado:** Interface original recuperada com 100% dos dados novos preservados e acessíveis em toda a plataforma.
+
+#### [Padronização da Identidade Visual (Spicy/Red)]
+*   **Estado Anterior:** Uso inconsistente de azuis e gradientes que não pertenciam à marca.
+*   **Ação:** Padronização global do vermelho `#dc2626` (Red-600) para botões de ação, login e preços. Restauração da Logo para Branco/Vermelho sólido.
+*   **Resultado:** Identidade visual coerente e profissional em todos os pontos de contato do usuário.
+
+---
+
+## 🎨 Frontend & UX (Histórico Original)
 
 #### [Implementação do Design System Shadcn UI]
 *   **Problema:** Inconsistência visual e necessidade de desenvolver componentes complexos (Modais, Selects, Toasts) do zero, o que consumiria muito tempo.
@@ -40,7 +65,7 @@ Este documento registra as decisões arquiteturais, melhorias de performance e i
 
 ---
 
-## ⚙️ Backend & Dados
+## ⚙️ Backend & Dados (Histórico Original)
 
 #### [Camada de Abstração de Dados (Data Layer Pattern)]
 *   **Problema:** O código de UI (`page.tsx`) estava acoplado diretamente à lógica do Supabase ou aos Mocks, dificultando a manutenção e a troca de fonte de dados.
@@ -61,7 +86,7 @@ Este documento registra as decisões arquiteturais, melhorias de performance e i
 
 ---
 
-## 🚀 Performance & Build
+## 🚀 Performance & Build (Histórico Original)
 
 #### [Otimização de Imagens com Next/Image]
 *   **Problema:** O carregamento de galerias de fotos pesadas causava layout shift (CLS) e lentidão.
@@ -106,7 +131,7 @@ Este documento registra as decisões arquiteturais, melhorias de performance e i
 *   **Resultado:** Mudança imediata de privilégios para conteúdo, stories, favoritas e mensagens.
 
 #### [Gerenciamento de Mídia Avançado (Áudio e Fotos)]
-*   **Problema:** A edição de perfil carecia de recursos multimídia ricos, especificamente a capacidade de adicionar novas fotos separadamente das atuais e a ausência de apresentação de voz (feature solicitada inspirada em concorrentes).
+*   **Problema:** A edição de perfil carecia de recursos multimídia ricos, especificamente a capacidade de adicionar novas fotos separadamente das atuais e a ausência de apresentação de voz.
 *   **Solução:**
     *   Refatoração do `ImageUpload` para permitir adição incremental de fotos (Drag & Drop) em vez de substituição total.
     *   Implementação do componente `VoiceRecorder` utilizando a API `MediaRecorder` do navegador para gravação, playback e exclusão de áudios de apresentação.
@@ -118,7 +143,7 @@ Este documento registra as decisões arquiteturais, melhorias de performance e i
 *   **Solução:** 
     *   Implementação da API `BroadcastChannel` em `local-chat.ts` e `header.tsx` para comunicação direta entre abas.
     *   Uso de listeners de evento `storage` como fallback e garantia de persistência.
-    *   Padronização absoluta dos IDs de usuário (usando e-mail como chave primária em vez de nomes artísticos) para garantir a entrega correta.
+    *   Padronização absoluta dos IDs de usuário (usando e-mail como chave primária) para garantir a entrega correta.
 *   **Resultado:** Experiência de chat fluida "estilo WhatsApp Web", com atualização instantânea de mensagens e contadores de notificação em todas as janelas abertas.
 
 #### [Recuperação de Senha e UX de Login]
@@ -134,12 +159,13 @@ Este documento registra as decisões arquiteturais, melhorias de performance e i
     *   Criação do componente `StoryViewer` para visualização imersiva em tela cheia com auto-advance.
     *   Integração na `ProfilesList` e `ProfileCard` com indicador visual (anel gradiente) para perfis com stories ativos.
     *   Adição de gerenciamento de Stories (upload de imagem/vídeo) no Dashboard da Modelo.
+
 #### [Funcionalidade de Stories - Expansão e Refinamento]
-*   **Problema:** A implementação inicial dos stories era apenas um modal simples e não tinha visibilidade suficiente na página de busca, além de conflitos de renderização.
+*   **Problema:** A implementação inicial dos stories era apenas um modal simples e não tinha visibilidade suficiente na página de busca.
 *   **Solução:**
     *   **Nova UX de Busca:** Implementação de uma barra de stories dedicada no topo da busca ("Instagram Style"), com scroll horizontal e indicadores visuais claros.
-    *   **Rota Dedicada:** Criação de `/app/stories/page.tsx` para isolar a lógica de visualização e permitir deep linking, resolvendo conflitos de z-index e estado na página de busca.
-    *   **Persistência Híbrida:** Atualização do `local-auth.ts` para mesclar dados de `SEED_PROFILES` (demo) com `localStorage` (novos uploads), garantindo que os stories de exemplo nunca sumam, mas permitindo que usuários adicionem os seus.
+    *   **Rota Dedicada:** Criação de `/app/stories/page.tsx` para isolar a lógica de visualização e permitir deep linking.
+    *   **Persistência Híbrida:** Atualização do `local-auth.ts` para mesclar dados de `SEED_PROFILES` (demo) com `localStorage` (novos uploads).
     *   **Upload de Vídeo:** Suporte adicionado para upload e playback de vídeos curtos nos stories.
 *   **Resultado:** Experiência de usuário fluida e familiar, robustez na persistência de dados e código mais limpo e desacoplado.
 

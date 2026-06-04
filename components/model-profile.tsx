@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, ChangeEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,7 @@ import { fetchProfileById } from "@/lib/db/profiles";
 import { supabase } from "@/lib/supabase";
 import { uploadProfileImages } from "@/lib/db/storage";
 import { useToast } from "@/components/ui/use-toast";
+import { cn } from "@/lib/utils";
 
 export function ModelProfile({ profileId }: { profileId: string }) {
   const { toast } = useToast()
@@ -58,7 +59,7 @@ export function ModelProfile({ profileId }: { profileId: string }) {
   }, [profileId])
 
   const toggleService = (s: string) => {
-    setServices(prev => prev.includes(s) ? prev.filter(i => i !== s) : [...prev, s])
+    setServices((prev: string[]) => prev.includes(s) ? prev.filter((i: string) => i !== s) : [...prev, s])
   }
 
   const save = async () => {
@@ -111,16 +112,19 @@ export function ModelProfile({ profileId }: { profileId: string }) {
             <Card className="bg-dark-900 border-gray-800">
               <CardContent className="p-4">
                 <div className="aspect-[4/5] w-full rounded-lg overflow-hidden mb-4 relative">
-                  {mainImage && <Image src={mainImage} alt={model?.name || ""} layout="fill" objectFit="cover" />}
+                  {mainImage && <Image src={mainImage} alt={model?.name || ""} fill className="object-cover" />}
                 </div>
                 <div className="grid grid-cols-5 gap-2">
                   {(model?.gallery ?? []).map((img: string, index: number) => (
                     <div
                       key={index}
-                       className={`aspect-square rounded-md cursor-pointer border-2 transition-all relative ${mainImage === img ? 'border-primary-500' : 'border-transparent hover:border-gray-600'}`}
+                       className={cn(
+                        "aspect-square rounded-md cursor-pointer border-2 transition-all relative",
+                        mainImage === img ? 'border-primary-500' : 'border-transparent hover:border-gray-600'
+                       )}
                       onClick={() => setMainImage(img)}
                     >
-                      <Image src={img} alt={`${model?.name} ${index + 1}`} layout="fill" objectFit="cover" className="rounded-sm" />
+                      <Image src={img} alt={`${model?.name} ${index + 1}`} fill className="rounded-sm object-cover" />
                     </div>
                   ))}
                 </div>
@@ -130,7 +134,7 @@ export function ModelProfile({ profileId }: { profileId: string }) {
                       type="file"
                       multiple
                       accept="image/*"
-                      onChange={(e) => {
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => {
                         const list = Array.from(e.target.files || []).slice(0, 10)
                         setFiles(list)
                       }}
@@ -150,7 +154,7 @@ export function ModelProfile({ profileId }: { profileId: string }) {
                 <input
                   className="w-full p-3 bg-dark-800 border border-gray-700 rounded-lg text-white mb-2"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
                 />
               )}
               <div className="flex items-center text-gray-400 mb-4">
@@ -161,7 +165,7 @@ export function ModelProfile({ profileId }: { profileId: string }) {
                   <input
                     className="w-full p-2 bg-dark-800 border border-gray-700 rounded-lg text-white"
                     value={city}
-                    onChange={(e) => setCity(e.target.value)}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setCity(e.target.value)}
                   />
                 )}
               </div>
@@ -185,7 +189,7 @@ export function ModelProfile({ profileId }: { profileId: string }) {
                   rows={4}
                   className="w-full p-3 bg-dark-800 border border-gray-700 rounded-lg text-white mb-6"
                   value={bio}
-                  onChange={(e) => setBio(e.target.value)}
+                  onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setBio(e.target.value)}
                 />
               )}
               {!editing ? (
@@ -194,7 +198,7 @@ export function ModelProfile({ profileId }: { profileId: string }) {
                 <input
                   className="w-full p-2 bg-dark-800 border border-gray-700 rounded-lg text-white mb-4"
                   value={price}
-                  onChange={(e) => setPrice(e.target.value)}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setPrice(e.target.value)}
                 />
               )}
               <div className="space-y-3">

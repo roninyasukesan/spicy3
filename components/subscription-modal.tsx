@@ -67,40 +67,40 @@ export function SubscriptionModal({ isOpen, onClose, modelName, modelId, onSucce
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md bg-zinc-950 border-zinc-800 text-white">
+      <DialogContent className="sm:max-w-md bg-dark-950 border-gray-800 text-white p-6">
         <DialogHeader>
-          <div className="mx-auto w-12 h-12 rounded-full bg-primary-500/20 flex items-center justify-center mb-4">
-            <Lock className="w-6 h-6 text-primary-500" />
+          <div className="mx-auto w-12 h-12 rounded-full bg-dark-900 border border-red-600/20 flex items-center justify-center mb-4">
+            <Lock className="w-6 h-6 text-red-600" />
           </div>
-          <DialogTitle className="text-center text-xl">Desbloquear Conteúdo VIP</DialogTitle>
-          <DialogDescription className="text-center text-zinc-400">
+          <DialogTitle className="text-center text-2xl font-bold">Desbloquear Conteúdo VIP</DialogTitle>
+          <DialogDescription className="text-center text-gray-400">
             Assine o perfil de <span className="font-semibold text-white">{modelName}</span> para ter acesso total.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="bg-zinc-900/50 rounded-lg p-4 space-y-3 my-4 border border-zinc-800">
-          <div className="flex items-center gap-3 text-sm text-zinc-300">
-            <Check className="w-4 h-4 text-green-500" />
+        <div className="bg-dark-900 rounded-lg p-5 space-y-4 my-6 border border-gray-800">
+          <div className="flex items-center gap-3 text-sm text-gray-300">
+            <Check className="w-5 h-5 text-green-500" />
             <span>Acesso ilimitado aos Stories</span>
           </div>
-          <div className="flex items-center gap-3 text-sm text-zinc-300">
-            <Check className="w-4 h-4 text-green-500" />
+          <div className="flex items-center gap-3 text-sm text-gray-300">
+            <Check className="w-5 h-5 text-green-500" />
             <span>Chat direto e privado</span>
           </div>
-          <div className="flex items-center gap-3 text-sm text-zinc-300">
-            <Check className="w-4 h-4 text-green-500" />
+          <div className="flex items-center gap-3 text-sm text-gray-300">
+            <Check className="w-5 h-5 text-green-500" />
             <span>Videochamadas exclusivas</span>
           </div>
         </div>
 
-        <div className="text-center mb-6">
-          <span className="text-3xl font-bold text-white">R$ 29,90</span>
-          <span className="text-zinc-500 text-sm"> / mês</span>
+        <div className="text-center mb-8">
+          <span className="text-4xl font-bold text-white">R$ 29,90</span>
+          <span className="text-gray-500 text-lg"> / mês</span>
         </div>
 
-        <DialogFooter className="flex-col sm:justify-center gap-2">
+        <div className="flex flex-col gap-3">
           <Button 
-            className="w-full bg-primary-600 hover:bg-primary-700 text-white font-bold h-12"
+            className="w-full bg-red-600 hover:bg-red-700 text-white font-bold h-14 text-lg"
             onClick={handleSubscribe}
             disabled={loading}
           >
@@ -108,12 +108,12 @@ export function SubscriptionModal({ isOpen, onClose, modelName, modelId, onSucce
           </Button>
           <Button 
             variant="ghost" 
-            className="w-full text-zinc-500 hover:text-white"
+            className="w-full text-gray-500 hover:text-white h-12"
             onClick={onClose}
           >
             Talvez depois
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   )

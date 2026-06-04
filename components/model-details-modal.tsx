@@ -259,7 +259,7 @@ export function ModelDetailsModal({ model, isOpen, onClose }: ModelDetailsModalP
                 )}
               </div>
 
-              <div className="text-2xl font-bold text-primary-500 mb-6">
+              <div className="text-2xl font-bold text-red-600 mb-6">
                 {model.price}
               </div>
 
@@ -367,7 +367,7 @@ export function ModelDetailsModal({ model, isOpen, onClose }: ModelDetailsModalP
                 <Button 
                     size="lg" 
                     variant="outline" 
-                    className="w-full border-primary-500 text-primary-500 hover:bg-primary-500 hover:text-white"
+                    className="w-full border-red-600 text-red-600 hover:bg-red-600 hover:text-white"
                     onClick={handleChat}
                 >
                     <MessageCircle className="h-5 w-5 mr-2" />
@@ -376,7 +376,7 @@ export function ModelDetailsModal({ model, isOpen, onClose }: ModelDetailsModalP
                 <Button 
                     size="lg" 
                     variant="outline" 
-                    className="w-full border-primary-500 text-primary-500 hover:bg-primary-500 hover:text-white"
+                    className="w-full border-red-600 text-red-600 hover:bg-red-600 hover:text-white"
                     onClick={handleVideoCall}
                 >
                     <Video className="h-5 w-5 mr-2" />

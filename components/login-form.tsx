@@ -105,15 +105,16 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
   };
 
   return (
-    <Card className="bg-dark-900 border-none p-4 w-full max-w-md mx-auto">
-      <CardHeader className="text-center space-y-2">
-        <CardTitle className="text-3xl font-bold text-white">Acesse sua Conta</CardTitle>
-        <CardDescription className="text-gray-400">Bem-vindo de volta. Entre para continuar.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
+    <div className="bg-dark-900 border-none p-6 w-full max-w-md mx-auto rounded-lg">
+      <div className="text-center space-y-2 mb-8">
+        <h2 className="text-3xl font-bold text-white">Acesse sua Conta</h2>
+        <p className="text-gray-400">Bem-vindo de volta. Entre para continuar.</p>
+      </div>
+      
+      <div className="space-y-6">
         <Button 
           variant="outline" 
-          className="w-full flex items-center justify-center gap-2 bg-dark-800 hover:bg-dark-700 text-white border-gray-700"
+          className="w-full flex items-center justify-center gap-2 bg-dark-800 hover:bg-dark-700 text-white border-gray-700 h-12"
           onClick={handleGoogleLogin}
         >
           <Image src="/google-icon.svg" alt="Google" width={20} height={20} />
@@ -122,24 +123,26 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
 
         <div className="relative">
           <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-gray-700"></span>
+            <span className="w-full border-t border-gray-800"></span>
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-dark-900 px-2 text-gray-400">Ou entre com e-mail</span>
+            <span className="bg-dark-900 px-4 text-gray-500">OU ENTRE COM E-MAIL</span>
           </div>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email" className="text-gray-300">E-mail</Label>
+            <Label htmlFor="email" className="text-gray-300 ml-1">E-mail</Label>
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center">
+                <Mail className="h-5 w-5 text-gray-500" />
+              </div>
               <Input
                 id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="pl-10 bg-dark-800 border-gray-700 text-white"
+                className="pl-11 bg-dark-800 border-gray-800 text-white h-12 focus:border-red-600/50 transition-all"
                 placeholder="seu@email.com"
                 required
                 disabled={loading}
@@ -148,20 +151,22 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between ml-1">
               <Label htmlFor="password" className="text-gray-300">Senha</Label>
-              <Link href="/recuperar-senha" className="text-sm text-primary hover:text-primary/80 transition-colors">
+              <Link href="/recuperar-senha" className="text-sm text-red-600 hover:text-red-500 transition-colors">
                 Esqueceu sua senha?
               </Link>
             </div>
             <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center">
+                <Lock className="h-5 w-5 text-gray-500" />
+              </div>
               <Input
                 id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="pl-10 bg-dark-800 border-gray-700 text-white"
+                className="pl-11 bg-dark-800 border-gray-800 text-white h-12 focus:border-red-600/50 transition-all"
                 placeholder="••••••••"
                 required
                 disabled={loading}
@@ -169,18 +174,18 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
             </div>
           </div>
 
-          <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-white" disabled={loading}>
+          <Button type="submit" className="w-full bg-red-600 hover:bg-red-700 text-white h-12 font-bold text-lg mt-2" disabled={loading}>
             {loading ? "Entrando..." : "Entrar"}
           </Button>
         </form>
 
-        <div className="text-center text-sm text-gray-400">
+        <div className="text-center text-sm text-gray-400 pt-2">
           Não tem uma conta?{" "}
-          <Link href="/cadastro" className="text-primary hover:text-primary/80 transition-colors font-medium">
+          <Link href="/cadastro" className="text-red-600 hover:text-red-500 transition-colors font-medium">
             Cadastre-se
           </Link>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
