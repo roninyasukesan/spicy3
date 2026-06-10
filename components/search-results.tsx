@@ -5,15 +5,15 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { MapPin, Star, Eye, Heart, Shield, MessageCircle, PlayCircle, Filter, ChevronUp, ChevronDown, Clock, DollarSign } from "lucide-react"
 import { AnimatedText } from "@/components/animated-text";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { ModelDetailsModal, Model } from "@/components/model-details-modal";
 import { SearchFiltersState } from "@/app/busca/page";
 import { PhysicalCharacteristics } from "@/lib/physical-characteristics";
 import { getAllLocalProfiles } from "@/lib/local-auth";
 import { StoryViewer } from "@/components/story-viewer";
-import { cn } from "@/lib/utils";
-import { useRouter, useSearchParams } from "next/navigation";
+import { cn, getPublicProfileSlug } from "@/lib/utils";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Slider } from "@/components/ui/slider"
 import { SearchFilters } from "@/components/search-filters"
@@ -34,74 +34,106 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
   const [profiles, setProfiles] = useState<Model[]>([]);
   const [sortBy, setSortBy] = useState<string>("relevance");
   const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
   const modelIdFromUrl = searchParams.get("modelId");
+  const profileSlugFromUrl = searchParams.get("perfil");
+
+  const loadProfiles = useCallback(() => {
+    const localProfiles = getAllLocalProfiles();
+    const mapped: Model[] = localProfiles.map((p) => {
+      const baseModel = mapLocalProfileToModel(p);
+
+      // Normalize characteristics to match filter options
+      const normalizeHairColor = (color?: string) => {
+         if (!color) return "Morena";
+         if (color.includes("Loir")) return "Loira";
+         if (color.includes("Moren")) return "Morena";
+         if (color.includes("Ruiv")) return "Ruiva";
+         if (color.includes("Pret")) return "Preta";
+         if (color.includes("Castanh")) return "Castanha";
+         return "Morena";
+      };
+
+      const normalizeEyes = (eyes?: string) => {
+          if (!eyes) return "Castanho";
+          if (eyes.includes("Azul") || eyes.includes("Azuis")) return "Azul";
+          if (eyes.includes("Verde")) return "Verde";
+          if (eyes.includes("Castanho")) return "Castanho";
+          if (eyes.includes("Preto")) return "Preto";
+          if (eyes.includes("Mel")) return "Mel";
+          return "Castanho";
+      };
+
+      const normalizeBreasts = (breasts?: string) => {
+          if (!breasts) return "Naturais Médios";
+          if (breasts.includes("Pequen")) return "Naturais Pequenos";
+          if (breasts.includes("Médi")) return "Naturais Médios";
+          if (breasts.includes("Grand")) return "Naturais Grandes";
+          if (breasts.includes("Silicon")) return "Silicone Médio";
+          return "Naturais Médios";
+      };
+
+      return {
+          ...baseModel,
+          rating: parseFloat((Math.random() * 1.5 + 3.5).toFixed(1)),
+          reviews: Math.floor(Math.random() * 50) + 10,
+          isVerified: true,
+          isOnline: Math.random() > 0.7,
+          characteristics: {
+              hairColor: normalizeHairColor(p.characteristics.hairColor),
+              ethnicity: p.characteristics.ethnicity || "Branca",
+              bodyType: p.characteristics.bodyType || "Curvilínea",
+              height: p.characteristics.height || "Mediana",
+              ageRange: p.characteristics.age || "18–22",
+              eyes: normalizeEyes(p.characteristics.eyes),
+              breasts: normalizeBreasts(p.characteristics.breasts),
+              tattoos: p.characteristics.tattoos === "Sim" ? "Algumas" : "Nenhuma",
+              piercings: p.characteristics.piercings === "Sim" ? "Vários" : "Nenhum"
+          }
+      };
+    });
+
+    setProfiles(mapped);
+  }, []);
 
   useEffect(() => {
-    if (modelIdFromUrl && profiles.length > 0) {
-      const model = profiles.find(p => p.id === modelIdFromUrl);
+    if ((modelIdFromUrl || profileSlugFromUrl) && profiles.length > 0) {
+      const model = profiles.find((p) => {
+        if (modelIdFromUrl && p.id === modelIdFromUrl) {
+          return true;
+        }
+
+        if (profileSlugFromUrl) {
+          return getPublicProfileSlug(p.name, p.id) === profileSlugFromUrl;
+        }
+
+        return false;
+      });
       if (model) {
         setSelectedModel(model);
         setIsModalOpen(true);
       }
+      return;
     }
-  }, [modelIdFromUrl, profiles]);
+
+    setIsModalOpen(false);
+    setSelectedModel(null);
+  }, [modelIdFromUrl, profileSlugFromUrl, profiles]);
 
   useEffect(() => {
-    const localProfiles = getAllLocalProfiles();
-    const mapped: Model[] = localProfiles.map((p, index) => {
-        const baseModel = mapLocalProfileToModel(p);
+    loadProfiles();
 
-        // Normalize characteristics to match filter options
-        const normalizeHairColor = (color?: string) => {
-           if (!color) return "Morena";
-           if (color.includes("Loir")) return "Loira";
-           if (color.includes("Moren")) return "Morena";
-           if (color.includes("Ruiv")) return "Ruiva";
-           if (color.includes("Pret")) return "Preta";
-           if (color.includes("Castanh")) return "Castanha";
-           return "Morena";
-        };
+    const handleProfilesChanged = () => loadProfiles();
 
-        const normalizeEyes = (eyes?: string) => {
-            if (!eyes) return "Castanho";
-            if (eyes.includes("Azul") || eyes.includes("Azuis")) return "Azul";
-            if (eyes.includes("Verde")) return "Verde";
-            if (eyes.includes("Castanho")) return "Castanho";
-            if (eyes.includes("Preto")) return "Preto";
-            if (eyes.includes("Mel")) return "Mel";
-            return "Castanho";
-        };
+    window.addEventListener("storage", handleProfilesChanged);
+    window.addEventListener("spicy-profile-change", handleProfilesChanged as EventListener);
 
-        const normalizeBreasts = (breasts?: string) => {
-            if (!breasts) return "Naturais Médios";
-            if (breasts.includes("Pequen")) return "Naturais Pequenos";
-            if (breasts.includes("Médi")) return "Naturais Médios";
-            if (breasts.includes("Grand")) return "Naturais Grandes";
-            if (breasts.includes("Silicon")) return "Silicone Médio";
-            return "Naturais Médios";
-        };
-
-        return {
-            ...baseModel,
-            rating: parseFloat((Math.random() * 1.5 + 3.5).toFixed(1)), 
-            reviews: Math.floor(Math.random() * 50) + 10,
-            isVerified: true,
-            isOnline: Math.random() > 0.7,
-            characteristics: {
-                hairColor: normalizeHairColor(p.characteristics.hairColor),
-                ethnicity: p.characteristics.ethnicity || "Branca",
-                bodyType: p.characteristics.bodyType || "Curvilínea",
-                height: p.characteristics.height || "Mediana",
-                ageRange: p.characteristics.age || "18–22",
-                eyes: normalizeEyes(p.characteristics.eyes),
-                breasts: normalizeBreasts(p.characteristics.breasts),
-                tattoos: p.characteristics.tattoos === "Sim" ? "Algumas" : "Nenhuma",
-                piercings: p.characteristics.piercings === "Sim" ? "Vários" : "Nenhum"
-            }
-        };
-    });
-    setProfiles(mapped);
-  }, []);
+    return () => {
+      window.removeEventListener("storage", handleProfilesChanged);
+      window.removeEventListener("spicy-profile-change", handleProfilesChanged as EventListener);
+    };
+  }, [loadProfiles]);
 
   useEffect(() => {
     const filtered = profiles.filter(profile => {
@@ -268,13 +300,21 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
   const handleOpenModal = (model: Model) => {
     setSelectedModel(model);
     setIsModalOpen(true);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("modelId");
+    params.set("perfil", getPublicProfileSlug(model.name, model.id));
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
+    setSelectedModel(null);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("perfil");
+    params.delete("modelId");
+    const nextQuery = params.toString();
+    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
   };
-
-  const router = useRouter();
 
   const handleOpenStoriesPage = (profileId: string) => {
     router.push(`/stories?id=${encodeURIComponent(profileId)}`);
@@ -514,17 +554,22 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
                     </p>
 
                     <div className="flex flex-wrap gap-2 mb-4">
-                      {profile.services?.slice(0, 3).map((service: string) => (
+                      {profile.services?.map((service: string) => (
                         <div key={service} className="bg-dark-700 hover:bg-dark-600 text-gray-300 border-none text-xs px-2.5 py-0.5 rounded-full font-semibold">
                           {service}
                         </div>
                       ))}
-                      {(profile.services?.length || 0) > 3 && (
-                        <div className="bg-dark-700 text-gray-300 border-none text-xs px-2.5 py-0.5 rounded-full font-semibold">
-                          +{(profile.services?.length || 0) - 3}
-                        </div>
-                      )}
                     </div>
+
+                    {profile.fetishes && profile.fetishes.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        {profile.fetishes.map((fetish: string) => (
+                          <div key={fetish} className="bg-red-900/20 text-red-300 border border-red-900/50 text-xs px-2.5 py-0.5 rounded-full font-semibold">
+                            {fetish}
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
                     <div className="flex items-center gap-2 mt-auto">
                       <Button 

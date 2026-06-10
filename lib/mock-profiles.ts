@@ -18,643 +18,894 @@ export interface ModelWithCharacteristics extends Model {
 export const mockProfiles: ModelWithCharacteristics[] = [
   {
     "id": "1",
-    "name": "Nayara",
-    "age": 27,
+    "name": "Jessica",
+    "age": 23,
     "city": "São Paulo",
-    "price": "R$ 450/h",
-    "rating": 4.7,
-    "reviews": 8,
+    "price": "R$ 1000/h",
+    "rating": 4.8,
+    "reviews": 38,
     "imageUrl": "/placeholder.svg?height=400&width=300",
     "isVerified": true,
-    "bio": "Acompanhante de alto nível para homens que buscam sexo de verdade, sem enrolação.",
+    "bio": "Sua putinha de luxo. Adoro ser submissa e realizar suas fantasias mais sujas.",
     "services": [
       "Viagens",
-      "Jantar",
+      "Massagem",
+      "Cinema",
+      "Passeios",
+      "Eventos",
+      "Fetiches",
       "Pernoite"
     ],
     "fetishes": [
       "Oral sem camisinha (oral natural)",
-      "Facesitting",
-      "Meias / Lingerie",
-      "Ejaculação facial"
+      "Sexo com amarras (bondage)",
+      "Troca de mensagens quentes",
+      "Striptease",
+      "Beijo grego",
+      "Sadomasoquismo",
+      "Submissão",
+      "Massagem erótica",
+      "Sexo no carro"
+    ],
+    "exclusions": [
+      "Não atende casais",
+      "Não atende homens casados",
+      "Não atende fetiches extremos"
     ],
     "characteristics": {
-      "hairColor": "Morena",
-      "ethnicity": "Negra",
-      "bodyType": "Fitness",
-      "height": "Baixa",
+      "hairColor": "Asiática (estilo oriental)",
+      "ethnicity": "Latina",
+      "bodyType": "Natural",
+      "height": "Mediana",
       "ageRange": "23–27",
       "eyes": "Mel",
-      "breasts": "Naturais Médios",
-      "tattoos": "Nenhuma",
-      "piercings": "Nariz"
-    }
-  },
-  {
-    "id": "2",
-    "name": "Evelyn",
-    "age": 34,
-    "city": "São Paulo",
-    "price": "R$ 300/h",
-    "rating": 4.7,
-    "reviews": 12,
-    "imageUrl": "/placeholder.svg?height=400&width=300",
-    "isVerified": true,
-    "bio": "Pronta para realizar seus desejos mais ocultos e inconfessáveis.",
-    "services": [
-      "Passeios",
-      "Festas",
-      "Jantar",
-      "Eventos"
-    ],
-    "fetishes": [
-      "Facesitting",
-      "Sexo com vendas nos olhos",
-      "Massagem erótica",
-      "Sexo com amarras (bondage)",
-      "Strapon (cinto com pênis)"
-    ],
-    "characteristics": {
-      "hairColor": "Ruiva",
-      "ethnicity": "Morena",
-      "bodyType": "Turbinada",
-      "height": "Mediana",
-      "ageRange": "28–35",
-      "eyes": "Azul",
       "breasts": "Silicone Grande",
       "tattoos": "Algumas",
-      "piercings": "Umbigo"
-    }
-  },
-  {
-    "id": "3",
-    "name": "Thais",
-    "age": 42,
-    "city": "São Paulo",
-    "price": "R$ 300/h",
-    "rating": 4.6,
-    "reviews": 14,
-    "imageUrl": "/placeholder.svg?height=400&width=300",
-    "isVerified": true,
-    "bio": "Adoro um sexo anal bem gostoso e profundo. Vem conferir.",
-    "services": [
-      "Jantar",
-      "Massagem",
-      "Festas",
-      "Viagens",
-      "Passeios"
-    ],
-    "fetishes": [
-      "Voyeurismo",
-      "Masturbação mútua",
-      "Dominação feminina (FemDom)"
-    ],
-    "characteristics": {
-      "hairColor": "Morena",
-      "ethnicity": "Mestiça",
-      "bodyType": "Natural",
-      "height": "Baixa",
-      "ageRange": "35+",
-      "eyes": "Verde",
-      "breasts": "Naturais Médios",
-      "tattoos": "Nenhuma",
       "piercings": "Língua"
     }
   },
   {
-    "id": "4",
-    "name": "Vitoria",
-    "age": 18,
-    "city": "Rio de Janeiro",
-    "price": "R$ 500/h",
-    "rating": 4.9,
-    "reviews": 11,
+    "id": "2",
+    "name": "Paloma",
+    "age": 20,
+    "city": "São Paulo",
+    "price": "R$ 350/h",
+    "rating": 4.5,
+    "reviews": 14,
     "imageUrl": "/placeholder.svg?height=400&width=300",
     "isVerified": true,
-    "bio": "Doce por fora, mas pegando fogo por dentro. Adoro engolir tudo.",
+    "bio": "Morena fogosa, quente como o inferno. Vou te deixar de pernas bambas.",
     "services": [
-      "Eventos",
-      "Jantar",
-      "Viagens",
+      "Acompanhante",
+      "Fetiches",
       "Pernoite",
-      "Cinema"
+      "Eventos",
+      "Passeios",
+      "Massagem",
+      "Festas",
+      "Jantar"
     ],
     "fetishes": [
-      "Dupla penetração (DP)",
-      "Striptease",
-      "Beijo grego",
+      "Dirty talk (fala suja)",
+      "Roleplay / Fantasias",
+      "Masturbação mútua",
+      "Cuckold / Voyeurismo",
+      "Strapon (cinto com pênis)",
+      "Facesitting (sentar no rosto)",
       "Dominação feminina (FemDom)",
-      "Masturbação mútua"
+      "BDSM leve",
+      "Striptease",
+      "Dupla penetração (DP)"
+    ],
+    "exclusions": [
+      "Não faz oral sem camisinha",
+      "Não atende homens casados"
     ],
     "characteristics": {
-      "hairColor": "Castanha",
-      "ethnicity": "Branca",
-      "bodyType": "Magra",
+      "hairColor": "Ruiva",
+      "ethnicity": "Morena",
+      "bodyType": "Plus Size",
       "height": "Baixa",
       "ageRange": "18–22",
-      "eyes": "Verde",
+      "eyes": "Mel",
+      "breasts": "Silicone Grande",
+      "tattoos": "Discretas",
+      "piercings": "Nenhum"
+    }
+  },
+  {
+    "id": "3",
+    "name": "Carla",
+    "age": 37,
+    "city": "São Paulo",
+    "price": "R$ 1000/h",
+    "rating": 4.5,
+    "reviews": 19,
+    "imageUrl": "/placeholder.svg?height=400&width=300",
+    "isVerified": true,
+    "bio": "Viciada em prazer e em proporcionar momentos intensos. Venha me usar.",
+    "services": [
+      "Fetiches",
+      "Viagens",
+      "Pernoite",
+      "Passeios",
+      "Cinema",
+      "Eventos",
+      "Jantar",
+      "Massagem"
+    ],
+    "fetishes": [
+      "GFE (Namoradinha)",
+      "Meias / Lingerie",
+      "Strapon (cinto com pênis)",
+      "Banho erótico",
+      "Pegação em público",
+      "Sexo com sapatos ou botas",
+      "Striptease",
+      "Ejaculação facial",
+      "Cuckold / Voyeurismo",
+      "Facesitting (sentar no rosto)",
+      "Dupla penetração (DP)",
+      "Sexo com vendas nos olhos",
+      "Posição 69",
+      "Uniformes (colegial, policial, enfermeira etc)",
+      "Submissão"
+    ],
+    "exclusions": [
+      "Não atende casais",
+      "Não grava vídeos",
+      "Não atende fetiches extremos"
+    ],
+    "characteristics": {
+      "hairColor": "Loira",
+      "ethnicity": "Asiática",
+      "bodyType": "Turbinada",
+      "height": "Mediana",
+      "ageRange": "35+",
+      "eyes": "Mel",
       "breasts": "Silicone Grande",
       "tattoos": "Muitas / Fechada",
       "piercings": "Nenhum"
     }
   },
   {
-    "id": "5",
-    "name": "Isabela",
-    "age": 19,
+    "id": "4",
+    "name": "Diana",
+    "age": 26,
     "city": "Rio de Janeiro",
-    "price": "R$ 600/h",
+    "price": "R$ 400/h",
     "rating": 4.7,
-    "reviews": 23,
+    "reviews": 35,
+    "imageUrl": "/placeholder.svg?height=400&width=300",
+    "isVerified": true,
+    "bio": "Corpo escultural e mente perversa. Pronta para te levar ao delírio.",
+    "services": [
+      "Jantar",
+      "Fetiches",
+      "Massagem",
+      "Cinema",
+      "Festas",
+      "Passeios",
+      "Eventos"
+    ],
+    "fetishes": [
+      "Facesitting (sentar no rosto)",
+      "Troca de mensagens quentes",
+      "Sexo com sapatos ou botas",
+      "Pés / Podolatria",
+      "Ejaculação facial",
+      "Masturbação mútua",
+      "Beijo na boca",
+      "Pegada firme / Rough sex",
+      "Pegação em público",
+      "Strapon (cinto com pênis)",
+      "Dirty talk (fala suja)",
+      "Cuckold / Voyeurismo"
+    ],
+    "exclusions": [
+      "Não atende casais",
+      "Não faz oral sem camisinha",
+      "Não atende fetiches extremos"
+    ],
+    "characteristics": {
+      "hairColor": "Loira",
+      "ethnicity": "Negra",
+      "bodyType": "Natural",
+      "height": "Alta",
+      "ageRange": "23–27",
+      "eyes": "Preto",
+      "breasts": "Silicone Grande",
+      "tattoos": "Discretas",
+      "piercings": "Íntimo"
+    }
+  },
+  {
+    "id": "5",
+    "name": "Bruna",
+    "age": 43,
+    "city": "Rio de Janeiro",
+    "price": "R$ 700/h",
+    "rating": 4.9,
+    "reviews": 6,
     "imageUrl": "/placeholder.svg?height=400&width=300",
     "isVerified": true,
     "bio": "Adoro um sexo anal bem gostoso e profundo. Vem conferir.",
     "services": [
-      "Passeios",
-      "Pernoite",
+      "Festas",
       "Eventos",
-      "Massagem"
+      "Massagem",
+      "Cinema",
+      "Acompanhante",
+      "Jantar",
+      "Fetiches"
     ],
     "fetishes": [
-      "GFE (Namoradinha)",
-      "Facesitting",
-      "Oral sem camisinha (oral natural)",
-      "Submissão"
+      "Troca de mensagens quentes",
+      "Sexo com amarras (bondage)",
+      "Masturbação mútua",
+      "Dirty talk (fala suja)",
+      "Dominação feminina (FemDom)",
+      "Posição 69",
+      "Uniformes (colegial, policial, enfermeira etc)",
+      "BDSM leve"
+    ],
+    "exclusions": [
+      "Não atende casais",
+      "Não atende homens casados",
+      "Não grava vídeos",
+      "Não atende fetiches extremos"
     ],
     "characteristics": {
-      "hairColor": "Colorida",
-      "ethnicity": "Latina",
-      "bodyType": "Magra",
-      "height": "Mediana",
-      "ageRange": "18–22",
-      "eyes": "Castanho",
-      "breasts": "Naturais Médios",
-      "tattoos": "Nenhuma",
-      "piercings": "Umbigo"
+      "hairColor": "Preta",
+      "ethnicity": "Mestiça",
+      "bodyType": "Plus Size",
+      "height": "Alta",
+      "ageRange": "35+",
+      "eyes": "Preto",
+      "breasts": "Silicone Médio",
+      "tattoos": "Muitas / Fechada",
+      "piercings": "Íntimo"
     }
   },
   {
     "id": "6",
-    "name": "Marcela",
-    "age": 23,
+    "name": "Camila",
+    "age": 34,
     "city": "Rio de Janeiro",
-    "price": "R$ 600/h",
-    "rating": 4.7,
-    "reviews": 22,
+    "price": "R$ 700/h",
+    "rating": 4.6,
+    "reviews": 26,
     "imageUrl": "/placeholder.svg?height=400&width=300",
     "isVerified": true,
-    "bio": "Pronta para realizar seus desejos mais ocultos e inconfessáveis.",
+    "bio": "Sem tabus e sem limites. Uma ninfomaníaca pronta para te satisfazer.",
     "services": [
+      "Viagens",
+      "Acompanhante",
+      "Festas",
       "Passeios",
-      "Massagem",
-      "Viagens"
+      "Pernoite"
     ],
     "fetishes": [
-      "Meias / Lingerie",
-      "Massagem tântrica",
-      "Roleplay / Fantasias",
-      "Masturbação mútua"
+      "Dominação feminina (FemDom)",
+      "BDSM leve",
+      "Posição 69",
+      "Strapon (cinto com pênis)",
+      "Facesitting (sentar no rosto)",
+      "Troca de mensagens quentes",
+      "Pés / Podolatria",
+      "Pegação em público",
+      "Dirty talk (fala suja)",
+      "Meias / Lingerie"
+    ],
+    "exclusions": [
+      "Não atende fetiches extremos",
+      "Não atende homens casados",
+      "Não atende casais"
     ],
     "characteristics": {
-      "hairColor": "Morena",
-      "ethnicity": "Morena",
-      "bodyType": "Fitness",
-      "height": "Alta",
-      "ageRange": "23–27",
-      "eyes": "Castanho",
+      "hairColor": "Preta",
+      "ethnicity": "Mestiça",
+      "bodyType": "Magra",
+      "height": "Baixa",
+      "ageRange": "28–35",
+      "eyes": "Mel",
       "breasts": "Naturais Pequenos",
-      "tattoos": "Muitas / Fechada",
-      "piercings": "Língua"
+      "tattoos": "Nenhuma",
+      "piercings": "Nariz"
     }
   },
   {
     "id": "7",
-    "name": "Ingrid",
-    "age": 25,
+    "name": "Priscila",
+    "age": 41,
     "city": "Belo Horizonte",
-    "price": "R$ 700/h",
+    "price": "R$ 800/h",
+    "rating": 4.6,
+    "reviews": 12,
+    "imageUrl": "/placeholder.svg?height=400&width=300",
+    "isVerified": true,
+    "bio": "Acompanhante de alto nível para homens que buscam sexo de verdade, sem enrolação.",
+    "services": [
+      "Jantar",
+      "Cinema",
+      "Fetiches",
+      "Eventos",
+      "Pernoite",
+      "Festas"
+    ],
+    "fetishes": [
+      "Submissão",
+      "Pegada firme / Rough sex",
+      "Beijo na boca",
+      "Pés / Podolatria",
+      "Uniformes (colegial, policial, enfermeira etc)",
+      "Sexo com amarras (bondage)",
+      "Strapon (cinto com pênis)",
+      "GFE (Namoradinha)",
+      "Roleplay / Fantasias",
+      "Dominação feminina (FemDom)",
+      "Facesitting (sentar no rosto)"
+    ],
+    "exclusions": [
+      "Não grava vídeos",
+      "Não atende homens casados"
+    ],
+    "characteristics": {
+      "hairColor": "Ruiva",
+      "ethnicity": "Negra",
+      "bodyType": "Magra",
+      "height": "Mediana",
+      "ageRange": "35+",
+      "eyes": "Preto",
+      "breasts": "Silicone Gigante",
+      "tattoos": "Muitas / Fechada",
+      "piercings": "Nenhum"
+    }
+  },
+  {
+    "id": "8",
+    "name": "Débora",
+    "age": 23,
+    "city": "Belo Horizonte",
+    "price": "R$ 800/h",
     "rating": 4.8,
+    "reviews": 40,
+    "imageUrl": "/placeholder.svg?height=400&width=300",
+    "isVerified": true,
+    "bio": "Sem tabus e sem limites. Uma ninfomaníaca pronta para te satisfazer.",
+    "services": [
+      "Festas",
+      "Eventos",
+      "Jantar",
+      "Massagem",
+      "Fetiches",
+      "Pernoite",
+      "Viagens"
+    ],
+    "fetishes": [
+      "Pegação em público",
+      "Submissão",
+      "Beijo na boca",
+      "Facesitting (sentar no rosto)",
+      "Massagem tântrica",
+      "Sexo anal",
+      "Striptease",
+      "Pés / Podolatria",
+      "Posição 69",
+      "Dupla penetração (DP)"
+    ],
+    "exclusions": [
+      "Não grava vídeos",
+      "Não faz oral sem camisinha"
+    ],
+    "characteristics": {
+      "hairColor": "Colorida",
+      "ethnicity": "Mestiça",
+      "bodyType": "Curvilínea",
+      "height": "Mediana",
+      "ageRange": "23–27",
+      "eyes": "Verde",
+      "breasts": "Naturais Médios",
+      "tattoos": "Muitas / Fechada",
+      "piercings": "Vários"
+    }
+  },
+  {
+    "id": "9",
+    "name": "Paula",
+    "age": 21,
+    "city": "Belo Horizonte",
+    "price": "R$ 500/h",
+    "rating": 4.9,
+    "reviews": 9,
+    "imageUrl": "/placeholder.svg?height=400&width=300",
+    "isVerified": true,
+    "bio": "Loirinha safada com carinha de anjo. As aparências enganam...",
+    "services": [
+      "Pernoite",
+      "Viagens",
+      "Passeios",
+      "Jantar",
+      "Festas",
+      "Acompanhante",
+      "Fetiches",
+      "Eventos"
+    ],
+    "fetishes": [
+      "Pegação em público",
+      "Beijo na boca",
+      "Banho erótico",
+      "Massagem tântrica",
+      "Cuckold / Voyeurismo",
+      "Sexo no carro",
+      "Sadomasoquismo",
+      "Dirty talk (fala suja)",
+      "Posição 69",
+      "Strapon (cinto com pênis)",
+      "Dominação feminina (FemDom)",
+      "Sexo com vendas nos olhos"
+    ],
+    "exclusions": [
+      "Não atende fetiches extremos",
+      "Não faz oral sem camisinha",
+      "Não atende homens casados",
+      "Não grava vídeos"
+    ],
+    "characteristics": {
+      "hairColor": "Preta",
+      "ethnicity": "Asiática",
+      "bodyType": "Plus Size",
+      "height": "Mediana",
+      "ageRange": "18–22",
+      "eyes": "Azul",
+      "breasts": "Silicone Grande",
+      "tattoos": "Discretas",
+      "piercings": "Íntimo"
+    }
+  },
+  {
+    "id": "10",
+    "name": "Zoe",
+    "age": 24,
+    "city": "Brasília",
+    "price": "R$ 350/h",
+    "rating": 4.6,
     "reviews": 38,
     "imageUrl": "/placeholder.svg?height=400&width=300",
     "isVerified": true,
     "bio": "Carinhosa no trato, mas uma devassa entre quatro paredes. Faço tudo.",
     "services": [
-      "Massagem",
-      "Viagens",
-      "Eventos",
-      "Passeios"
-    ],
-    "fetishes": [
-      "Massagem tântrica",
-      "Sexo com vendas nos olhos",
-      "Sadomasoquismo",
-      "Dominação feminina (FemDom)",
-      "Dupla penetração (DP)"
-    ],
-    "characteristics": {
-      "hairColor": "Colorida",
-      "ethnicity": "Branca",
-      "bodyType": "Curvilínea",
-      "height": "Mediana",
-      "ageRange": "23–27",
-      "eyes": "Mel",
-      "breasts": "Silicone Gigante",
-      "tattoos": "Algumas",
-      "piercings": "Mamilo"
-    }
-  },
-  {
-    "id": "8",
-    "name": "Flavia",
-    "age": 41,
-    "city": "Belo Horizonte",
-    "price": "R$ 700/h",
-    "rating": 4.9,
-    "reviews": 36,
-    "imageUrl": "/placeholder.svg?height=400&width=300",
-    "isVerified": true,
-    "bio": "Mestrada na arte do prazer. Faço massagem tântrica com final feliz explosivo.",
-    "services": [
-      "Passeios",
-      "Massagem",
-      "Viagens",
-      "Pernoite"
-    ],
-    "fetishes": [
-      "Banho erótico",
-      "Meias / Lingerie",
-      "Roleplay / Fantasias",
-      "Voyeurismo",
-      "Posição 69",
-      "Sexo com vendas nos olhos"
-    ],
-    "characteristics": {
-      "hairColor": "Morena",
-      "ethnicity": "Negra",
-      "bodyType": "Curvilínea",
-      "height": "Mediana",
-      "ageRange": "35+",
-      "eyes": "Mel",
-      "breasts": "Silicone Grande",
-      "tattoos": "Nenhuma",
-      "piercings": "Íntimo"
-    }
-  },
-  {
-    "id": "9",
-    "name": "Raquel",
-    "age": 41,
-    "city": "Belo Horizonte",
-    "price": "R$ 350/h",
-    "rating": 4.7,
-    "reviews": 29,
-    "imageUrl": "/placeholder.svg?height=400&width=300",
-    "isVerified": true,
-    "bio": "Carinhosa, atenciosa e muito safada. O pacote completo para seu prazer.",
-    "services": [
-      "Passeios",
-      "Jantar",
-      "Eventos",
+      "Pernoite",
+      "Fetiches",
       "Cinema",
-      "Festas"
+      "Acompanhante",
+      "Eventos"
     ],
     "fetishes": [
+      "Sexo com vendas nos olhos",
+      "Meias / Lingerie",
+      "Sexo anal",
+      "Massagem erótica",
+      "Oral sem camisinha (oral natural)",
+      "Submissão",
+      "Sexo com amarras (bondage)",
+      "Filmagem amadora (com consentimento)",
       "Pegada firme / Rough sex",
-      "Masturbação mútua",
-      "Beijo na boca",
-      "Sadomasoquismo",
-      "Roleplay / Fantasias"
-    ],
-    "characteristics": {
-      "hairColor": "Ruiva",
-      "ethnicity": "Negra",
-      "bodyType": "Plus Size",
-      "height": "Mediana",
-      "ageRange": "35+",
-      "eyes": "Castanho",
-      "breasts": "Silicone Médio",
-      "tattoos": "Nenhuma",
-      "piercings": "Nariz"
-    }
-  },
-  {
-    "id": "10",
-    "name": "Thais",
-    "age": 30,
-    "city": "Brasília",
-    "price": "R$ 450/h",
-    "rating": 4.8,
-    "reviews": 11,
-    "imageUrl": "/placeholder.svg?height=400&width=300",
-    "isVerified": true,
-    "bio": "Loirinha safada com carinha de anjo. As aparências enganam...",
-    "services": [
-      "Viagens",
-      "Eventos",
-      "Jantar",
-      "Festas",
-      "Pernoite"
-    ],
-    "fetishes": [
-      "Striptease",
-      "Brinquedos eróticos",
       "Beijo grego",
-      "Posição 69",
-      "Massagem tântrica",
-      "Massagem erótica"
+      "Dirty talk (fala suja)",
+      "Roleplay / Fantasias",
+      "Sexo no carro",
+      "Sexo com espelhos",
+      "Cuckold / Voyeurismo"
+    ],
+    "exclusions": [
+      "Não atende homens casados",
+      "Não atende fetiches extremos",
+      "Não atende casais"
     ],
     "characteristics": {
-      "hairColor": "Preta",
-      "ethnicity": "Branca",
-      "bodyType": "Fitness",
-      "height": "Mediana",
-      "ageRange": "28–35",
-      "eyes": "Mel",
+      "hairColor": "Castanha",
+      "ethnicity": "Morena",
+      "bodyType": "Curvilínea",
+      "height": "Alta",
+      "ageRange": "23–27",
+      "eyes": "Preto",
       "breasts": "Silicone Grande",
-      "tattoos": "Nenhuma",
-      "piercings": "Nenhum"
+      "tattoos": "Discretas",
+      "piercings": "Umbigo"
     }
   },
   {
     "id": "11",
-    "name": "Rafaela",
-    "age": 43,
+    "name": "Fabiana",
+    "age": 41,
     "city": "Brasília",
-    "price": "R$ 700/h",
-    "rating": 4.8,
-    "reviews": 39,
+    "price": "R$ 300/h",
+    "rating": 5.0,
+    "reviews": 31,
     "imageUrl": "/placeholder.svg?height=400&width=300",
     "isVerified": true,
-    "bio": "Morena fogosa, quente como o inferno. Vou te deixar de pernas bambas.",
+    "bio": "Bumbum gigante e guloso. Adoro levar tapas e puxões de cabelo.",
     "services": [
+      "Acompanhante",
+      "Massagem",
+      "Passeios",
+      "Festas",
       "Pernoite",
-      "Eventos",
-      "Jantar",
-      "Massagem"
+      "Viagens"
     ],
     "fetishes": [
-      "Meias / Lingerie",
-      "Filmagem amadora",
+      "Pegação em público",
+      "Cuckold / Voyeurismo",
+      "Sexo anal",
+      "Sexo com sapatos ou botas",
+      "Pés / Podolatria",
+      "Sadomasoquismo",
+      "Oral sem camisinha (oral natural)",
+      "BDSM leve",
+      "Dirty talk (fala suja)",
+      "Masturbação mútua",
       "Sexo com vendas nos olhos",
-      "Sexo com amarras (bondage)",
-      "Massagem erótica",
-      "Uniformes"
+      "Filmagem amadora (com consentimento)"
+    ],
+    "exclusions": [
+      "Não faz oral sem camisinha",
+      "Não atende homens casados"
     ],
     "characteristics": {
       "hairColor": "Ruiva",
-      "ethnicity": "Asiática",
-      "bodyType": "Natural",
-      "height": "Mediana",
-      "ageRange": "35+",
-      "eyes": "Castanho",
-      "breasts": "Naturais Médios",
-      "tattoos": "Muitas / Fechada",
-      "piercings": "Umbigo"
-    }
-  },
-  {
-    "id": "12",
-    "name": "Isabela",
-    "age": 39,
-    "city": "Brasília",
-    "price": "R$ 350/h",
-    "rating": 4.9,
-    "reviews": 22,
-    "imageUrl": "/placeholder.svg?height=400&width=300",
-    "isVerified": true,
-    "bio": "Dominadora experiente. Vou te ensinar o verdadeiro significado de prazer e dor.",
-    "services": [
-      "Jantar",
-      "Cinema",
-      "Passeios"
-    ],
-    "fetishes": [
-      "Beijo grego",
-      "BDSM leve",
-      "Masturbação mútua",
-      "Posição 69"
-    ],
-    "characteristics": {
-      "hairColor": "Colorida",
-      "ethnicity": "Latina",
-      "bodyType": "Magra",
-      "height": "Mediana",
-      "ageRange": "35+",
-      "eyes": "Castanho",
-      "breasts": "Silicone Médio",
-      "tattoos": "Algumas",
-      "piercings": "Umbigo"
-    }
-  },
-  {
-    "id": "13",
-    "name": "Ana",
-    "age": 44,
-    "city": "Salvador",
-    "price": "R$ 1000/h",
-    "rating": 4.5,
-    "reviews": 33,
-    "imageUrl": "/placeholder.svg?height=400&width=300",
-    "isVerified": true,
-    "bio": "Loirinha safada com carinha de anjo. As aparências enganam...",
-    "services": [
-      "Eventos",
-      "Passeios",
-      "Viagens",
-      "Festas",
-      "Jantar"
-    ],
-    "fetishes": [
-      "Facesitting",
-      "Voyeurismo",
-      "Ejaculação facial",
-      "Roleplay / Fantasias",
-      "Massagem erótica",
-      "Brinquedos eróticos"
-    ],
-    "characteristics": {
-      "hairColor": "Preta",
       "ethnicity": "Mestiça",
-      "bodyType": "Natural",
-      "height": "Alta",
+      "bodyType": "Turbinada",
+      "height": "Mediana",
       "ageRange": "35+",
-      "eyes": "Castanho",
+      "eyes": "Azul",
       "breasts": "Naturais Pequenos",
       "tattoos": "Algumas",
       "piercings": "Umbigo"
     }
   },
   {
-    "id": "14",
-    "name": "Sabrina",
-    "age": 20,
-    "city": "Salvador",
-    "price": "R$ 400/h",
-    "rating": 4.7,
-    "reviews": 37,
-    "imageUrl": "/placeholder.svg?height=400&width=300",
-    "isVerified": true,
-    "bio": "Gosto de homens que sabem o que querem. Realizo beijo grego e muito mais.",
-    "services": [
-      "Pernoite",
-      "Eventos",
-      "Massagem",
-      "Jantar"
-    ],
-    "fetishes": [
-      "Voyeurismo",
-      "Oral sem camisinha (oral natural)",
-      "Posição 69",
-      "Sexo anal"
-    ],
-    "characteristics": {
-      "hairColor": "Colorida",
-      "ethnicity": "Asiática",
-      "bodyType": "Curvilínea",
-      "height": "Baixa",
-      "ageRange": "18–22",
-      "eyes": "Preto",
-      "breasts": "Silicone Gigante",
-      "tattoos": "Discretas",
-      "piercings": "Umbigo"
-    }
-  },
-  {
-    "id": "15",
-    "name": "Rafaela",
-    "age": 45,
-    "city": "Salvador",
-    "price": "R$ 600/h",
-    "rating": 4.6,
+    "id": "12",
+    "name": "Nayara",
+    "age": 30,
+    "city": "Brasília",
+    "price": "R$ 500/h",
+    "rating": 5.0,
     "reviews": 32,
     "imageUrl": "/placeholder.svg?height=400&width=300",
     "isVerified": true,
-    "bio": "Acompanhante de alto nível para homens que buscam sexo de verdade, sem enrolação.",
+    "bio": "Experiência namoradinha (GFE) com sexo intenso e muita cumplicidade.",
     "services": [
       "Passeios",
-      "Festas",
-      "Massagem"
-    ],
-    "fetishes": [
-      "Dupla penetração (DP)",
-      "Ejaculação facial",
-      "Uniformes"
-    ],
-    "characteristics": {
-      "hairColor": "Loira",
-      "ethnicity": "Negra",
-      "bodyType": "Magra",
-      "height": "Alta",
-      "ageRange": "35+",
-      "eyes": "Mel",
-      "breasts": "Silicone Médio",
-      "tattoos": "Algumas",
-      "piercings": "Mamilo"
-    }
-  },
-  {
-    "id": "16",
-    "name": "Beatriz",
-    "age": 28,
-    "city": "Fortaleza",
-    "price": "R$ 800/h",
-    "rating": 5.0,
-    "reviews": 19,
-    "imageUrl": "/placeholder.svg?height=400&width=300",
-    "isVerified": true,
-    "bio": "Gosto de homens que sabem o que querem. Realizo beijo grego e muito mais.",
-    "services": [
       "Cinema",
-      "Massagem",
-      "Viagens"
+      "Eventos",
+      "Fetiches",
+      "Pernoite"
     ],
     "fetishes": [
-      "Submissão",
-      "Sadomasoquismo",
-      "Sexo com amarras (bondage)",
-      "Pegada firme / Rough sex",
-      "Ejaculação facial",
-      "Dominação feminina (FemDom)"
-    ],
-    "characteristics": {
-      "hairColor": "Ruiva",
-      "ethnicity": "Morena",
-      "bodyType": "Plus Size",
-      "height": "Mediana",
-      "ageRange": "28–35",
-      "eyes": "Mel",
-      "breasts": "Silicone Médio",
-      "tattoos": "Nenhuma",
-      "piercings": "Nariz"
-    }
-  },
-  {
-    "id": "17",
-    "name": "Wanessa",
-    "age": 26,
-    "city": "Fortaleza",
-    "price": "R$ 700/h",
-    "rating": 4.8,
-    "reviews": 10,
-    "imageUrl": "/placeholder.svg?height=400&width=300",
-    "isVerified": true,
-    "bio": "Venha ter uma noite inesquecível e cheia de tesão comigo.",
-    "services": [
-      "Jantar",
-      "Massagem",
-      "Eventos"
-    ],
-    "fetishes": [
+      "Massagem tântrica",
+      "Uniformes (colegial, policial, enfermeira etc)",
+      "Sexo com vendas nos olhos",
+      "Cuckold / Voyeurismo",
       "Meias / Lingerie",
       "Sadomasoquismo",
-      "Facesitting",
+      "Submissão",
+      "Dominação feminina (FemDom)",
+      "Ejaculação facial",
+      "Dupla penetração (DP)",
       "Beijo na boca"
+    ],
+    "exclusions": [
+      "Não atende casais",
+      "Não atende fetiches extremos",
+      "Não atende homens casados",
+      "Não faz oral sem camisinha"
     ],
     "characteristics": {
       "hairColor": "Asiática (estilo oriental)",
-      "ethnicity": "Negra",
-      "bodyType": "Turbinada",
+      "ethnicity": "Morena",
+      "bodyType": "Natural",
       "height": "Baixa",
+      "ageRange": "28–35",
+      "eyes": "Mel",
+      "breasts": "Naturais Pequenos",
+      "tattoos": "Muitas / Fechada",
+      "piercings": "Vários"
+    }
+  },
+  {
+    "id": "13",
+    "name": "Daniela",
+    "age": 26,
+    "city": "Salvador",
+    "price": "R$ 450/h",
+    "rating": 4.7,
+    "reviews": 27,
+    "imageUrl": "/placeholder.svg?height=400&width=300",
+    "isVerified": true,
+    "bio": "Dominadora experiente. Vou te ensinar o verdadeiro significado de prazer e dor.",
+    "services": [
+      "Jantar",
+      "Eventos",
+      "Massagem",
+      "Fetiches",
+      "Festas",
+      "Viagens"
+    ],
+    "fetishes": [
+      "Oral sem camisinha (oral natural)",
+      "Sexo no carro",
+      "Meias / Lingerie",
+      "Roleplay / Fantasias",
+      "Troca de mensagens quentes",
+      "Beijo na boca",
+      "Dirty talk (fala suja)",
+      "Posição 69",
+      "Sadomasoquismo",
+      "Pegação em público",
+      "Facesitting (sentar no rosto)"
+    ],
+    "exclusions": [
+      "Não grava vídeos",
+      "Não atende casais"
+    ],
+    "characteristics": {
+      "hairColor": "Ruiva",
+      "ethnicity": "Negra",
+      "bodyType": "Magra",
+      "height": "Alta",
       "ageRange": "23–27",
-      "eyes": "Preto",
-      "breasts": "Silicone Grande",
+      "eyes": "Verde",
+      "breasts": "Naturais Médios",
       "tattoos": "Discretas",
       "piercings": "Língua"
     }
   },
   {
-    "id": "18",
-    "name": "Ivana",
+    "id": "14",
+    "name": "Alice",
     "age": 19,
-    "city": "Fortaleza",
+    "city": "Salvador",
     "price": "R$ 300/h",
+    "rating": 4.8,
+    "reviews": 25,
+    "imageUrl": "/placeholder.svg?height=400&width=300",
+    "isVerified": true,
+    "bio": "Morena fogosa, quente como o inferno. Vou te deixar de pernas bambas.",
+    "services": [
+      "Cinema",
+      "Festas",
+      "Jantar",
+      "Fetiches",
+      "Viagens",
+      "Pernoite",
+      "Massagem",
+      "Passeios"
+    ],
+    "fetishes": [
+      "Beijo grego",
+      "Beijo na boca",
+      "Sexo com espelhos",
+      "Pegação em público",
+      "Cuckold / Voyeurismo",
+      "Pés / Podolatria",
+      "Strapon (cinto com pênis)",
+      "Sexo com amarras (bondage)",
+      "Massagem tântrica"
+    ],
+    "exclusions": [
+      "Não grava vídeos",
+      "Não atende casais",
+      "Não atende fetiches extremos"
+    ],
+    "characteristics": {
+      "hairColor": "Loira",
+      "ethnicity": "Negra",
+      "bodyType": "Plus Size",
+      "height": "Alta",
+      "ageRange": "18–22",
+      "eyes": "Preto",
+      "breasts": "Silicone Gigante",
+      "tattoos": "Algumas",
+      "piercings": "Nenhum"
+    }
+  },
+  {
+    "id": "15",
+    "name": "Isabela",
+    "age": 41,
+    "city": "Salvador",
+    "price": "R$ 800/h",
+    "rating": 4.9,
+    "reviews": 43,
+    "imageUrl": "/placeholder.svg?height=400&width=300",
+    "isVerified": true,
+    "bio": "Loirinha safada com carinha de anjo. As aparências enganam...",
+    "services": [
+      "Fetiches",
+      "Cinema",
+      "Acompanhante",
+      "Passeios",
+      "Pernoite"
+    ],
+    "fetishes": [
+      "Uniformes (colegial, policial, enfermeira etc)",
+      "Meias / Lingerie",
+      "Pegação em público",
+      "Sexo com vendas nos olhos",
+      "GFE (Namoradinha)",
+      "Roleplay / Fantasias",
+      "Dominação feminina (FemDom)",
+      "Sexo com amarras (bondage)",
+      "Dupla penetração (DP)",
+      "Cuckold / Voyeurismo",
+      "Submissão"
+    ],
+    "exclusions": [
+      "Não faz oral sem camisinha",
+      "Não atende casais"
+    ],
+    "characteristics": {
+      "hairColor": "Preta",
+      "ethnicity": "Branca",
+      "bodyType": "Fitness",
+      "height": "Baixa",
+      "ageRange": "35+",
+      "eyes": "Mel",
+      "breasts": "Naturais Grandes",
+      "tattoos": "Nenhuma",
+      "piercings": "Íntimo"
+    }
+  },
+  {
+    "id": "16",
+    "name": "Julia",
+    "age": 28,
+    "city": "Fortaleza",
+    "price": "R$ 450/h",
+    "rating": 4.8,
+    "reviews": 6,
+    "imageUrl": "/placeholder.svg?height=400&width=300",
+    "isVerified": true,
+    "bio": "Sem tabus e sem limites. Uma ninfomaníaca pronta para te satisfazer.",
+    "services": [
+      "Massagem",
+      "Eventos",
+      "Viagens",
+      "Festas",
+      "Passeios",
+      "Jantar"
+    ],
+    "fetishes": [
+      "Submissão",
+      "Banho erótico",
+      "Dominação feminina (FemDom)",
+      "Pegada firme / Rough sex",
+      "Sexo com amarras (bondage)",
+      "Dupla penetração (DP)",
+      "Pés / Podolatria",
+      "Roleplay / Fantasias",
+      "Masturbação mútua",
+      "Massagem erótica",
+      "Sexo com vendas nos olhos",
+      "Strapon (cinto com pênis)",
+      "Dirty talk (fala suja)",
+      "Massagem tântrica",
+      "Brinquedos eróticos"
+    ],
+    "exclusions": [
+      "Não atende fetiches extremos",
+      "Não atende casais"
+    ],
+    "characteristics": {
+      "hairColor": "Asiática (estilo oriental)",
+      "ethnicity": "Branca",
+      "bodyType": "Plus Size",
+      "height": "Alta",
+      "ageRange": "28–35",
+      "eyes": "Verde",
+      "breasts": "Silicone Médio",
+      "tattoos": "Algumas",
+      "piercings": "Língua"
+    }
+  },
+  {
+    "id": "17",
+    "name": "Bruna",
+    "age": 21,
+    "city": "Fortaleza",
+    "price": "R$ 400/h",
     "rating": 4.8,
     "reviews": 36,
     "imageUrl": "/placeholder.svg?height=400&width=300",
     "isVerified": true,
-    "bio": "Corpo escultural e mente perversa. Pronta para te levar ao delírio.",
+    "bio": "Viciada em prazer e em proporcionar momentos intensos. Venha me usar.",
     "services": [
-      "Passeios",
       "Festas",
+      "Passeios",
+      "Jantar",
+      "Viagens",
       "Eventos",
-      "Cinema"
+      "Cinema",
+      "Fetiches",
+      "Massagem"
     ],
     "fetishes": [
-      "Uniformes",
+      "Sexo com vendas nos olhos",
+      "Sexo anal",
+      "Facesitting (sentar no rosto)",
+      "Sexo com amarras (bondage)",
+      "Pegada firme / Rough sex",
       "Ejaculação facial",
-      "BDSM leve",
-      "Oral sem camisinha (oral natural)",
-      "Roleplay / Fantasias",
-      "Dominação feminina (FemDom)"
+      "Sexo no carro",
+      "Massagem tântrica",
+      "Dupla penetração (DP)"
+    ],
+    "exclusions": [
+      "Não faz oral sem camisinha",
+      "Não atende homens casados"
     ],
     "characteristics": {
-      "hairColor": "Castanha",
-      "ethnicity": "Latina",
-      "bodyType": "Natural",
+      "hairColor": "Morena",
+      "ethnicity": "Asiática",
+      "bodyType": "Turbinada",
       "height": "Alta",
       "ageRange": "18–22",
-      "eyes": "Verde",
-      "breasts": "Naturais Médios",
+      "eyes": "Azul",
+      "breasts": "Silicone Médio",
+      "tattoos": "Discretas",
+      "piercings": "Íntimo"
+    }
+  },
+  {
+    "id": "18",
+    "name": "Nicole",
+    "age": 23,
+    "city": "Fortaleza",
+    "price": "R$ 700/h",
+    "rating": 4.7,
+    "reviews": 19,
+    "imageUrl": "/placeholder.svg?height=400&width=300",
+    "isVerified": true,
+    "bio": "Loirinha safada com carinha de anjo. As aparências enganam...",
+    "services": [
+      "Cinema",
+      "Massagem",
+      "Eventos",
+      "Acompanhante",
+      "Jantar",
+      "Pernoite",
+      "Passeios",
+      "Viagens"
+    ],
+    "fetishes": [
+      "Troca de mensagens quentes",
+      "Posição 69",
+      "Sexo anal",
+      "Sexo com espelhos",
+      "Strapon (cinto com pênis)",
+      "Pegada firme / Rough sex",
+      "Pegação em público",
+      "Filmagem amadora (com consentimento)",
+      "BDSM leve",
+      "Sadomasoquismo",
+      "Oral sem camisinha (oral natural)",
+      "Sexo com amarras (bondage)",
+      "Sexo no carro"
+    ],
+    "exclusions": [
+      "Não grava vídeos",
+      "Não atende casais",
+      "Não atende homens casados"
+    ],
+    "characteristics": {
+      "hairColor": "Asiática (estilo oriental)",
+      "ethnicity": "Branca",
+      "bodyType": "Fitness",
+      "height": "Baixa",
+      "ageRange": "23–27",
+      "eyes": "Azul",
+      "breasts": "Silicone Médio",
       "tattoos": "Algumas",
       "piercings": "Língua"
     }

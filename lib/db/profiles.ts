@@ -14,6 +14,7 @@ export type DbProfile = {
   bio: string | null
   services: string[] | null
   fetishes: string[] | null
+  exclusions?: string[] | null
   gallery: string[] | null
   gallery_items?: ModelPhoto[] | null
   characteristics: {
@@ -38,7 +39,7 @@ export async function fetchProfiles(): Promise<DbProfile[]> {
   const { data, error } = await supabase
     .from("profiles")
     .select(
-      "id,name,city,price,image_url,age,rating,reviews,is_verified,bio,services,fetishes,gallery,characteristics"
+      "id,name,city,price,image_url,age,rating,reviews,is_verified,bio,services,fetishes,exclusions,gallery,characteristics"
     )
     .limit(50)
   if (error) return []
@@ -56,7 +57,7 @@ export async function fetchProfilesFiltered(filters: ProfilesFilterInput): Promi
   let q = supabase
     .from("profiles")
     .select(
-      "id,name,city,price,image_url,age,rating,reviews,is_verified,bio,services,fetishes,gallery,characteristics"
+      "id,name,city,price,image_url,age,rating,reviews,is_verified,bio,services,fetishes,exclusions,gallery,characteristics"
     )
   if (filters.cities && filters.cities.length > 0) {
     q = q.in("city", filters.cities)
@@ -95,6 +96,7 @@ export async function fetchProfileById(id: string): Promise<DbProfile | null> {
           bio: local.bio,
           services: local.services,
           fetishes: local.fetishes,
+          exclusions: local.exclusions,
           gallery: local.photos || [],
           gallery_items: local.photoItems || [],
           characteristics: local.characteristics
@@ -109,7 +111,7 @@ export async function fetchProfileById(id: string): Promise<DbProfile | null> {
   const { data, error } = await supabase
     .from("profiles")
     .select(
-      "id,name,city,price,image_url,age,rating,reviews,is_verified,bio,services,fetishes,gallery,characteristics"
+      "id,name,city,price,image_url,age,rating,reviews,is_verified,bio,services,fetishes,exclusions,gallery,characteristics"
     )
     .eq("id", id)
     .single()

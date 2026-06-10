@@ -40,15 +40,63 @@ names = [
     "Kelly", "Lorena", "Marcela", "Nayara", "Priscila", "Raquel", "Samara", "Thais", "Viviane", "Zoe"
 ]
 
-services = ["Jantar", "Eventos", "Viagens", "Cinema", "Passeios", "Massagem", "Festas", "Pernoite"]
+services = [
+    "Acompanhante",
+    "Massagem",
+    "Jantar",
+    "Eventos",
+    "Viagens",
+    "Fetiches",
+    "Cinema",
+    "Passeios",
+    "Festas",
+    "Pernoite"
+]
 
 fetishes = [
-    "GFE (Namoradinha)", "Dominação feminina (FemDom)", "Submissão", "BDSM leve", "Sadomasoquismo", 
-    "Roleplay / Fantasias", "Pés / Podolatria", "Meias / Lingerie", "Uniformes", "Brinquedos eróticos", 
-    "Sexo com vendas nos olhos", "Sexo com amarras (bondage)", "Beijo na boca", "Pegada firme / Rough sex",
-    "Posição 69", "Oral sem camisinha (oral natural)", "Sexo anal", "Dupla penetração (DP)", "Banho erótico", 
-    "Beijo grego", "Massagem tântrica", "Massagem erótica", "Strapon (cinto com pênis)", "Facesitting", 
-    "Ejaculação facial", "Masturbação mútua", "Striptease", "Dirty talk", "Filmagem amadora", "Voyeurismo"
+    "GFE (Namoradinha)",
+    "Dominação feminina (FemDom)",
+    "Submissão",
+    "BDSM leve",
+    "Sadomasoquismo",
+    "Roleplay / Fantasias",
+    "Pés / Podolatria",
+    "Meias / Lingerie",
+    "Uniformes (colegial, policial, enfermeira etc)",
+    "Brinquedos eróticos",
+    "Sexo com vendas nos olhos",
+    "Sexo com amarras (bondage)",
+    "Beijo na boca",
+    "Pegada firme / Rough sex",
+    "Posição 69",
+    "Oral sem camisinha (oral natural)",
+    "Sexo anal",
+    "Dupla penetração (DP)",
+    "Banho erótico",
+    "Beijo grego",
+    "Massagem tântrica",
+    "Massagem erótica",
+    "Strapon (cinto com pênis)",
+    "Facesitting (sentar no rosto)",
+    "Ejaculação facial",
+    "Masturbação mútua",
+    "Striptease",
+    "Dirty talk (fala suja)",
+    "Filmagem amadora (com consentimento)",
+    "Cuckold / Voyeurismo",
+    "Pegação em público",
+    "Sexo com sapatos ou botas",
+    "Sexo com espelhos",
+    "Sexo no carro",
+    "Troca de mensagens quentes"
+]
+
+exclusions = [
+    "Não atende casais",
+    "Não atende homens casados",
+    "Não atende fetiches extremos",
+    "Não grava vídeos",
+    "Não faz oral sem camisinha"
 ]
 
 bios = [
@@ -175,8 +223,9 @@ for city in target_cities:
         rating = round(random.uniform(4.5, 5.0), 1)
         reviews = random.randint(5, 50)
         
-        model_services = random.sample(services, k=random.randint(3, 5))
-        model_fetishes = random.sample(fetishes, k=random.randint(3, 6))
+        model_services = random.sample(services, k=random.randint(5, 8))
+        model_fetishes = random.sample(fetishes, k=random.randint(8, 15))
+        model_exclusions = random.sample(exclusions, k=random.randint(2, 4))
         bio = random.choice(bios)
         
         chars = {
@@ -204,6 +253,7 @@ for city in target_cities:
             "bio": bio,
             "services": model_services,
             "fetishes": model_fetishes,
+            "exclusions": model_exclusions,
             "characteristics": chars
         }
         profiles.append(profile)

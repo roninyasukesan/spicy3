@@ -1,16 +1,16 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { compressImage } from "@/lib/image-utils";
 import { Header } from "@/components/header";
-import { type UserRole, cn } from "@/lib/utils";
-import { localGetUser, getAllLocalProfiles, getModelProfile, saveModelProfile, getProfilePhotoItems, type ModelPhoto, type ModelProfile, type Story } from "@/lib/local-auth";
+import { cn, getProfileSearchPath, type UserRole } from "@/lib/utils";
+import { estimateModelProfileStorageSize, localGetUser, getAllLocalProfiles, getModelProfile, saveModelProfile, getProfilePhotoItems, type ModelPhoto, type ModelProfile, type Story } from "@/lib/local-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { X, Upload, Trash2, Image as ImageIcon, Film, GripVertical, Lock, LockOpen, Star, PlayCircle, ChevronLeft } from 'lucide-react';
+import { X, Upload, Trash2, Image as ImageIcon, Film, GripVertical, Lock, LockOpen, Star, PlayCircle, ChevronLeft, LoaderCircle, CheckCircle2, Eye } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
@@ -24,6 +24,21 @@ import { Dialog, DialogContent, DialogTitle, DialogHeader } from "@/components/u
 import Image from "next/image";
 
 const SERVICES_LIST = ["Acompanhante", "Massagem", "Jantar", "Eventos", "Viagens", "Fetiches"];
+const MAX_PHOTOS = 12;
+const MAX_STORIES = 10;
+const MAX_PHOTO_FILE_SIZE_BYTES = 15 * 1024 * 1024;
+const MAX_STORY_IMAGE_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+const MAX_VOICE_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+const PHOTO_TARGET_BYTES = 260 * 1024;
+const STORY_TARGET_BYTES = 180 * 1024;
+const PROFILE_STORAGE_SOFT_LIMIT_BYTES = Math.floor(4.5 * 1024 * 1024);
+type SaveStatus = "idle" | "compressing" | "saving" | "success";
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
 
 export default function AdminEditModeloPage() {
   const router = useRouter();
@@ -35,7 +50,7 @@ export default function AdminEditModeloPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [draggedPhotoId, setDraggedPhotoId] = useState<string | null>(null);
   const [draggedStoryId, setDraggedStoryId] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [previewMedia, setPreviewMedia] = useState<{ url: string, type: 'image' | 'video' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const storyInputRef = useRef<HTMLInputElement>(null);
@@ -96,6 +111,29 @@ export default function AdminEditModeloPage() {
   }, [router, searchParams]);
 
   const currentPhotoItems = getProfilePhotoItems(profile);
+  const profileToSave = useMemo<ModelProfile>(
+    () => ({
+      ...profile,
+      photoItems: currentPhotoItems,
+      photos: currentPhotoItems.map((photo) => photo.url),
+      coverImage: currentPhotoItems[0]?.url,
+    }),
+    [currentPhotoItems, profile]
+  );
+  const estimatedStorageBytes = useMemo(
+    () => (editingEmail ? estimateModelProfileStorageSize(editingEmail, profileToSave) : 0),
+    [editingEmail, profileToSave]
+  );
+  const isStorageNearLimit = estimatedStorageBytes >= PROFILE_STORAGE_SOFT_LIMIT_BYTES;
+  const isSaving = saveStatus !== "idle";
+  const saveButtonLabel =
+    saveStatus === "compressing"
+      ? "Comprimindo e preparando..."
+      : saveStatus === "saving"
+        ? "Salvando perfil..."
+        : saveStatus === "success"
+          ? "Salvo com sucesso"
+        : "Salvar Alterações";
 
   const updatePhotoItems = (photoItems: ModelPhoto[]) => {
     setProfile((prev) => ({
@@ -108,31 +146,34 @@ export default function AdminEditModeloPage() {
 
   const handleSaveProfile = async () => {
     if (editingEmail) {
-      setIsSaving(true);
-      await new Promise(resolve => setTimeout(resolve, 800));
+      if (isStorageNearLimit) {
+        toast({
+          title: "Perfil grande demais para o modo local",
+          description: `O perfil esta usando cerca de ${formatFileSize(estimatedStorageBytes)}. Remova algumas fotos, stories ou audio antes de salvar.`,
+          variant: "destructive"
+        });
+        return;
+      }
 
-      const success = saveModelProfile(editingEmail, {
-        ...profile,
-        photoItems: currentPhotoItems,
-        photos: currentPhotoItems.map((photo) => photo.url),
-        coverImage: currentPhotoItems[0]?.url,
-      });
+      setSaveStatus("compressing");
+      await new Promise(resolve => setTimeout(resolve, 450));
+      setSaveStatus("saving");
+      await new Promise(resolve => setTimeout(resolve, 450));
 
-      setIsSaving(false);
+      const success = saveModelProfile(editingEmail, profileToSave);
 
       if (success) {
+        setSaveStatus("success");
         toast({
           title: "Alterações salvas!",
-          description: `As alterações de ${profile.artisticName || editingName} foram persistidas globalmente.`,
+          description: `As alterações de ${profile.artisticName || editingName} foram salvas. Clique em "Visualizar Perfil" para conferir a versão atualizada.`,
         });
-
-        setTimeout(() => {
-          router.push(`/busca?modelId=${encodeURIComponent(editingEmail)}`);
-        }, 1000);
+        window.setTimeout(() => setSaveStatus("idle"), 1600);
       } else {
+        setSaveStatus("idle");
         toast({
           title: "Erro ao salvar",
-          description: "Limite de armazenamento atingido.",
+          description: "O navegador nao conseguiu persistir o perfil no localStorage. Remova algumas fotos, stories ou audio e tente novamente.",
           variant: "destructive"
         });
       }
@@ -195,43 +236,93 @@ export default function AdminEditModeloPage() {
   };
 
   const processFiles = async (files: File[]) => {
-    for (const file of files) {
-      if (!file.type.startsWith('image/')) continue;
+    const remainingSlots = MAX_PHOTOS - currentPhotoItems.length;
+    if (remainingSlots <= 0) {
+      toast({
+        title: "Limite de fotos atingido",
+        description: `Remova alguma foto antes de adicionar mais. Limite atual: ${MAX_PHOTOS}.`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const feedback: string[] = [];
+    const acceptedFiles = files.filter((file) => {
+      if (!file.type.startsWith('image/')) {
+        feedback.push(`"${file.name}" foi ignorado porque nao e uma imagem.`);
+        return false;
+      }
+
+      if (file.size > MAX_PHOTO_FILE_SIZE_BYTES) {
+        feedback.push(`"${file.name}" excede ${formatFileSize(MAX_PHOTO_FILE_SIZE_BYTES)}.`);
+        return false;
+      }
+
+      return true;
+    });
+    const validFiles = acceptedFiles.slice(0, remainingSlots);
+
+    if (acceptedFiles.length > validFiles.length) {
+      feedback.push(`A galeria local aceita no maximo ${MAX_PHOTOS} fotos.`);
+    }
+
+    const newPhotoItems: ModelPhoto[] = [];
+
+    for (const file of validFiles) {
       try {
-        const compressedDataUrl = await compressImage(file, 900, 900, 0.55);
-        setProfile((prev) => {
-          const prevPhotoItems = getProfilePhotoItems(prev);
-          const nextPhotoItems = [
-            ...prevPhotoItems,
-            {
-              id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-              url: compressedDataUrl,
-              isBlurred: false,
-            },
-          ];
-          return {
-            ...prev,
-            photoItems: nextPhotoItems,
-            photos: nextPhotoItems.map((photo) => photo.url),
-            coverImage: nextPhotoItems[0]?.url,
-          };
+        const compressedDataUrl = await compressImage(file, 960, 1280, 0.72, PHOTO_TARGET_BYTES);
+        newPhotoItems.push({
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          url: compressedDataUrl,
+          isBlurred: false,
         });
       } catch (error) {
         console.error(error);
+        feedback.push(`Nao foi possivel processar "${file.name}".`);
       }
     }
-    toast({ title: "Fotos adicionadas!" });
+
+    if (newPhotoItems.length > 0) {
+      setProfile((prev) => {
+        const prevPhotoItems = getProfilePhotoItems(prev);
+        const nextPhotoItems = [...prevPhotoItems, ...newPhotoItems];
+        return {
+          ...prev,
+          photoItems: nextPhotoItems,
+          photos: nextPhotoItems.map((photo) => photo.url),
+          coverImage: nextPhotoItems[0]?.url,
+        };
+      });
+    }
+
+    toast({
+      title: newPhotoItems.length > 0 ? "Fotos adicionadas!" : "Nenhuma foto adicionada",
+      description: feedback.length > 0 ? feedback.join(" ") : `As imagens foram comprimidas para caber melhor no modo local.`,
+      variant: newPhotoItems.length > 0 ? "default" : "destructive"
+    });
   };
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       processFiles(Array.from(e.target.files));
     }
+    e.target.value = "";
   };
 
   const handleVoiceUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
+
+      if (file.size > MAX_VOICE_FILE_SIZE_BYTES) {
+        toast({
+          title: "Audio muito grande",
+          description: `No modo local, use audios de ate ${formatFileSize(MAX_VOICE_FILE_SIZE_BYTES)}.`,
+          variant: "destructive"
+        });
+        e.target.value = "";
+        return;
+      }
+
       const reader = new FileReader();
       reader.onloadend = () => {
         if (reader.result) {
@@ -244,38 +335,77 @@ export default function AdminEditModeloPage() {
   };
 
   const processStoryFiles = async (files: File[]) => {
-    for (const file of files) {
-      if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) continue;
+    const existingStories = profile.stories || [];
+    const remainingSlots = MAX_STORIES - existingStories.length;
+
+    if (remainingSlots <= 0) {
+      toast({
+        title: "Limite de stories atingido",
+        description: `Remova algum story antes de adicionar mais. Limite atual: ${MAX_STORIES}.`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const feedback: string[] = [];
+    const acceptedFiles = files.filter((file) => {
+      if (file.type.startsWith('video/')) {
+        feedback.push(`"${file.name}" foi bloqueado: videos nao sao suportados no modo local.`);
+        return false;
+      }
+
+      if (!file.type.startsWith('image/')) {
+        feedback.push(`"${file.name}" foi ignorado porque nao e uma imagem.`);
+        return false;
+      }
+
+      if (file.size > MAX_STORY_IMAGE_FILE_SIZE_BYTES) {
+        feedback.push(`"${file.name}" excede ${formatFileSize(MAX_STORY_IMAGE_FILE_SIZE_BYTES)}.`);
+        return false;
+      }
+
+      return true;
+    });
+    const validFiles = acceptedFiles.slice(0, remainingSlots);
+
+    if (acceptedFiles.length > validFiles.length) {
+      feedback.push(`O modo local aceita no maximo ${MAX_STORIES} stories.`);
+    }
+
+    const newStories: Story[] = [];
+
+    for (const file of validFiles) {
       try {
-        let mediaUrl = "";
-        if (file.type.startsWith('image/')) {
-          mediaUrl = await compressImage(file, 720, 1280, 0.5);
-        } else {
-          mediaUrl = await new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.readAsDataURL(file);
-          });
-        }
-        const newStory: Story = {
+        const mediaUrl = await compressImage(file, 720, 1280, 0.7, STORY_TARGET_BYTES);
+        newStories.push({
           id: Date.now().toString() + Math.random().toString().slice(2),
-          mediaUrl: mediaUrl,
-          mediaType: file.type.startsWith('video/') ? 'video' : 'image',
+          mediaUrl,
+          mediaType: 'image',
           duration: 5,
           createdAt: new Date().toISOString()
-        };
-        setProfile(prev => ({ ...prev, stories: [...(prev.stories || []), newStory] }));
+        });
       } catch (error) {
         console.error(error);
+        feedback.push(`Nao foi possivel processar "${file.name}".`);
       }
     }
-    toast({ title: "Stories adicionados!" });
+
+    if (newStories.length > 0) {
+      setProfile(prev => ({ ...prev, stories: [...(prev.stories || []), ...newStories] }));
+    }
+
+    toast({
+      title: newStories.length > 0 ? "Stories adicionados!" : "Nenhum story adicionado",
+      description: feedback.length > 0 ? feedback.join(" ") : `So imagens sao permitidas no modo local.`,
+      variant: newStories.length > 0 ? "default" : "destructive"
+    });
   };
 
   const handleStoryUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       processStoryFiles(Array.from(e.target.files));
     }
+    e.target.value = "";
   };
 
   const removePhoto = (index: number) => {
@@ -358,8 +488,12 @@ export default function AdminEditModeloPage() {
             <p className="text-gray-400">Editando perfil: <span className="text-primary font-medium">{editingName}</span></p>
           </div>
           <div className="flex gap-3">
-             <Button variant="outline" className="border-gray-700 text-gray-300" onClick={() => router.push(`/busca?modelId=${encodeURIComponent(editingEmail)}`)}>Visualizar Perfil</Button>
-             <Button onClick={handleSaveProfile} disabled={isSaving} className="bg-primary hover:bg-primary/90 text-white">{isSaving ? "Salvando..." : "Salvar Alterações"}</Button>
+             <Button variant="outline" className="border-gray-700 text-gray-300" onClick={() => router.push(getProfileSearchPath(profile.artisticName || editingName || editingEmail, editingEmail))}>Visualizar Perfil</Button>
+             <Button onClick={handleSaveProfile} disabled={isSaving} className="bg-primary hover:bg-primary/90 text-white">
+               {(saveStatus === "compressing" || saveStatus === "saving") && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+               {saveStatus === "success" && <CheckCircle2 className="mr-2 h-4 w-4" />}
+               {saveButtonLabel}
+             </Button>
           </div>
         </div>
 
@@ -408,13 +542,64 @@ export default function AdminEditModeloPage() {
             <Card className="bg-dark-900 border-gray-800">
               <CardHeader><CardTitle className="text-white">Serviços e Fetiches</CardTitle></CardHeader>
               <CardContent className="space-y-6">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {SERVICES_LIST.map(service => (
-                    <div key={service} className="flex items-center space-x-2">
-                      <Checkbox id={`srv-${service}`} checked={profile.services.includes(service)} onCheckedChange={() => toggleService(service)} className="border-gray-500" />
-                      <Label htmlFor={`srv-${service}`} className="text-gray-300">{service}</Label>
-                    </div>
-                  ))}
+                <div className="space-y-3">
+                  <Label className="text-white text-lg">Serviços</Label>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {SERVICES_LIST.map(service => (
+                      <div key={service} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`srv-${service}`}
+                          checked={profile.services.includes(service)}
+                          onCheckedChange={() => toggleService(service)}
+                          className="border-gray-500 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                        />
+                        <Label htmlFor={`srv-${service}`} className="text-gray-300 cursor-pointer">{service}</Label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="text-white text-lg">Faz</Label>
+                  <div className="space-y-4">
+                    {Object.entries(FETISH_CATEGORIES)
+                      .filter(([key]) => key !== "exclusion")
+                      .map(([key, category]) => (
+                        <div key={key}>
+                          <h4 className="text-gray-400 mb-2 font-medium">{category.label}</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                            {category.options.map((fetish) => (
+                              <div key={fetish} className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`ft-${fetish}`}
+                                  checked={profile.fetishes.includes(fetish)}
+                                  onCheckedChange={() => toggleFetish(fetish)}
+                                  className="border-gray-500 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                                />
+                                <Label htmlFor={`ft-${fetish}`} className="text-gray-300 text-sm cursor-pointer">{fetish}</Label>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="text-white text-lg">Não faz</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {FETISH_CATEGORIES.exclusion.options.map((exclusion) => (
+                      <div key={exclusion} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`ex-${exclusion}`}
+                          checked={profile.exclusions.includes(exclusion)}
+                          onCheckedChange={() => toggleExclusion(exclusion)}
+                          className="border-red-500 data-[state=checked]:bg-red-600 data-[state=checked]:border-red-600"
+                        />
+                        <Label htmlFor={`ex-${exclusion}`} className="text-gray-300 text-sm cursor-pointer">{exclusion}</Label>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -429,6 +614,7 @@ export default function AdminEditModeloPage() {
                   <div className="flex flex-col items-center gap-3">
                     <Upload className="h-8 w-8 text-gray-500" />
                     <p className="text-white font-medium">Arraste fotos ou clique para enviar</p>
+                    <p className="text-xs text-gray-500">Ate {MAX_PHOTOS} fotos. Cada arquivo pode ter no maximo {formatFileSize(MAX_PHOTO_FILE_SIZE_BYTES)} e sera comprimido no navegador antes de importar.</p>
                   </div>
                 </div>
 
@@ -439,6 +625,9 @@ export default function AdminEditModeloPage() {
                       className="relative aspect-[3/4] rounded-lg overflow-hidden border border-gray-700 group cursor-zoom-in"
                     >
                       <Image src={photo.url} alt="Foto" fill className={cn("object-cover", photo.isBlurred && "blur-md")} />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                        <Eye className="h-8 w-8 text-white/70" />
+                      </div>
                       <div className="absolute left-2 top-2 flex items-center gap-2 z-20">
                          <GripVertical className="h-4 w-4 text-white bg-black/50 rounded p-0.5 cursor-grab" />
                          {index === 0 && <Badge className="bg-primary text-white text-[10px]">Capa</Badge>}
@@ -458,11 +647,15 @@ export default function AdminEditModeloPage() {
               <CardHeader><CardTitle className="text-white">Stories (24h)</CardTitle></CardHeader>
               <CardContent className="space-y-6">
                  <div className="border-2 border-dashed border-gray-700 rounded-lg p-6 text-center hover:bg-dark-800 cursor-pointer" onClick={() => storyInputRef.current?.click()}>
-                   <Input type="file" multiple accept="image/*,video/*" onChange={handleStoryUpload} className="hidden" ref={storyInputRef} />
+                   <Input type="file" multiple accept="image/*" onChange={handleStoryUpload} className="hidden" ref={storyInputRef} />
                    <div className="flex flex-col items-center gap-2">
                      <PlayCircle className="h-6 w-6 text-primary" />
                      <span className="text-white text-sm">Adicionar Stories</span>
+                     <span className="text-xs text-gray-500">No modo local, apenas imagens sao aceitas. Ate {MAX_STORIES} stories, com compressao nativa antes da importacao.</span>
                    </div>
+                 </div>
+                 <div className={cn("rounded-lg border px-3 py-2 text-sm", isStorageNearLimit ? "border-red-500/60 bg-red-500/10 text-red-100" : "border-amber-500/40 bg-amber-500/10 text-amber-100")}>
+                   Armazenamento estimado do perfil: {formatFileSize(estimatedStorageBytes)}. O modo local costuma falhar perto de {formatFileSize(PROFILE_STORAGE_SOFT_LIMIT_BYTES)}.
                  </div>
                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                    {profile.stories?.map((story, index) => (
@@ -471,6 +664,9 @@ export default function AdminEditModeloPage() {
                         className="relative aspect-[9/16] rounded-lg overflow-hidden border border-gray-700 group bg-black cursor-zoom-in"
                      >
                         {story.mediaType === 'image' ? <Image src={story.mediaUrl} alt="Story" fill className={cn("object-cover", story.isBlurred && "blur-sm")} /> : <video src={story.mediaUrl} className={cn("w-full h-full object-cover", story.isBlurred && "blur-sm")} />}
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                          <Eye className="h-8 w-8 text-white/70" />
+                        </div>
                         <div className="absolute top-1 right-1 flex flex-col gap-1 z-20 opacity-0 group-hover:opacity-100">
                           <Button size="icon" variant="destructive" className="h-6 w-6 rounded-full" onClick={() => removeStory(story.id)}><X className="h-3 w-3" /></Button>
                           <Button size="icon" variant="secondary" className={cn("h-6 w-6 rounded-full", story.isBlurred && "bg-amber-500")} onClick={() => toggleStoryBlur(story.id)}>{story.isBlurred ? <Lock className="h-3 w-3" /> : <LockOpen className="h-3 w-3" />}</Button>
@@ -481,6 +677,19 @@ export default function AdminEditModeloPage() {
                  </div>
               </CardContent>
             </Card>
+
+            <div className="flex justify-end">
+              <Button
+                onClick={handleSaveProfile}
+                size="lg"
+                disabled={isSaving}
+                className="bg-primary hover:bg-primary/90 text-white"
+              >
+                {(saveStatus === "compressing" || saveStatus === "saving") && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                {saveStatus === "success" && <CheckCircle2 className="mr-2 h-4 w-4" />}
+                {saveButtonLabel}
+              </Button>
+            </div>
           </TabsContent>
         </Tabs>
       </main>

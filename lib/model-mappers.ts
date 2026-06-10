@@ -18,6 +18,7 @@ export function mapLocalProfileToModel(profile: ModelProfile & { email: string }
     bio: profile.bio,
     services: profile.services,
     fetishes: profile.fetishes,
+    exclusions: profile.exclusions,
     gallery: getProfilePhotoUrls(profile),
     galleryItems,
     stories: profile.stories || [],

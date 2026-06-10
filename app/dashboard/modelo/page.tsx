@@ -9,7 +9,7 @@ import { localGetUser, getAllLocalProfiles, getModelProfile, saveModelProfile, g
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { X, Upload, Trash2, Image as ImageIcon, Film, GripVertical, Lock, LockOpen, Star, PlayCircle } from 'lucide-react';
+import { X, Upload, Trash2, Image as ImageIcon, Film, GripVertical, Lock, LockOpen, Star, PlayCircle, LoaderCircle, CheckCircle2, Eye } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
@@ -23,6 +23,7 @@ import { Dialog, DialogContent, DialogTitle, DialogHeader } from "@/components/u
 import Image from "next/image";
 
 const SERVICES_LIST = ["Acompanhante", "Massagem", "Jantar", "Eventos", "Viagens", "Fetiches"];
+type SaveStatus = "idle" | "compressing" | "saving" | "success";
 
 export default function ModeloDashboardPage() {
   const router = useRouter();
@@ -35,7 +36,7 @@ export default function ModeloDashboardPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [draggedPhotoId, setDraggedPhotoId] = useState<string | null>(null);
   const [draggedStoryId, setDraggedStoryId] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [previewMedia, setPreviewMedia] = useState<{ url: string, type: 'image' | 'video' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const storyInputRef = useRef<HTMLInputElement>(null);
@@ -100,6 +101,15 @@ export default function ModeloDashboardPage() {
   }, [router]);
 
   const currentPhotoItems = getProfilePhotoItems(profile);
+  const isSaving = saveStatus !== "idle";
+  const saveButtonLabel =
+    saveStatus === "compressing"
+      ? "Comprimindo e preparando..."
+      : saveStatus === "saving"
+        ? "Salvando perfil..."
+        : saveStatus === "success"
+          ? "Salvo com sucesso"
+        : "Salvar Alterações";
 
   const updatePhotoItems = (photoItems: ModelPhoto[]) => {
     setProfile((prev) => ({
@@ -113,10 +123,11 @@ export default function ModeloDashboardPage() {
   const handleSaveProfile = async () => {
     const user = localGetUser();
     if (user && editingEmail) {
-      setIsSaving(true);
+      setSaveStatus("compressing");
       
-      // Simulate a small delay for better UX/feedback
-      await new Promise(resolve => setTimeout(resolve, 800));
+      await new Promise(resolve => setTimeout(resolve, 450));
+      setSaveStatus("saving");
+      await new Promise(resolve => setTimeout(resolve, 450));
 
       const success = saveModelProfile(editingEmail, {
         ...profile,
@@ -125,19 +136,15 @@ export default function ModeloDashboardPage() {
         coverImage: currentPhotoItems[0]?.url,
       });
 
-      setIsSaving(false);
-
       if (success) {
+        setSaveStatus("success");
         toast({
           title: "Alterações salvas!",
           description: "Seu perfil foi atualizado com sucesso.",
         });
-
-        // Redirect to search page with the model ID to open the modal
-        setTimeout(() => {
-          router.push(`/busca?modelId=${encodeURIComponent(editingEmail)}`);
-        }, 1000);
+        window.setTimeout(() => setSaveStatus("idle"), 1600);
       } else {
+        setSaveStatus("idle");
         toast({
           title: "Erro ao salvar perfil",
           description: "O limite de armazenamento foi atingido. Tente remover algumas fotos.",
@@ -391,12 +398,34 @@ export default function ModeloDashboardPage() {
               Gerencie seu perfil, fotos e preferências.
             </p>
           </div>
+          <div className="flex gap-3">
+            <Button 
+              variant="outline" 
+              className="border-gray-700 text-gray-300"
+              onClick={() => {
+                const url = `/perfil/${encodeURIComponent(editingEmail)}`;
+                window.open(url, '_blank');
+              }}
+            >
+              Visualizar Perfil Público
+            </Button>
+            <Button 
+              onClick={handleSaveProfile} 
+              disabled={isSaving}
+              className="bg-primary hover:bg-primary/90 text-white"
+            >
+              {(saveStatus === "compressing" || saveStatus === "saving") && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+              {saveStatus === "success" && <CheckCircle2 className="mr-2 h-4 w-4" />}
+              {saveButtonLabel}
+            </Button>
+          </div>
         </div>
 
         <Tabs defaultValue="dashboard" className="space-y-6">
           <TabsList className="bg-dark-900 border-gray-800">
             <TabsTrigger value="dashboard">Visão Geral</TabsTrigger>
             <TabsTrigger value="profile">Editar Perfil</TabsTrigger>
+            <TabsTrigger value="media">Gerenciar Mídia</TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-6">
@@ -431,84 +460,53 @@ export default function ModeloDashboardPage() {
 
               <Card className="bg-dark-900 border-gray-800">
                 <CardHeader>
-                  <CardTitle className="text-white">Galeria de Fotos</CardTitle>
+                  <CardTitle className="text-white">Acesso Rápido</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                    {currentPhotoItems.map((photo, index) => (
-                      <div key={index} className="relative aspect-square rounded-md overflow-hidden border border-gray-700 group">
-                        <Image src={photo.url} alt={`Foto ${index + 1}`} fill sizes="(max-width: 768px) 50vw, 25vw" className={photo.isBlurred ? "object-cover blur-md" : "object-cover"} />
-                        {index === 0 && (
-                          <span className="absolute left-1 top-1 rounded bg-primary px-2 py-1 text-[10px] font-semibold text-white">
-                            Destaque
-                          </span>
-                        )}
-                        {photo.isBlurred && (
-                          <span className="absolute bottom-1 left-1 rounded bg-black/70 px-2 py-1 text-[10px] font-semibold text-white">
-                            Blur cliente
-                          </span>
-                        )}
-                        <button 
-                          onClick={() => removePhoto(index)}
-                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ))}
+                  <div className="grid grid-cols-2 gap-4">
+                    <Button 
+                      variant="outline" 
+                      className="h-24 flex flex-col gap-2 border-gray-800 bg-dark-800 hover:bg-dark-700"
+                      onClick={() => {
+                        const tabsList = document.querySelector('[role="tablist"]');
+                        const mediaTab = tabsList?.querySelector('[value="media"]') as HTMLButtonElement;
+                        mediaTab?.click();
+                      }}
+                    >
+                      <ImageIcon className="h-6 w-6 text-primary" />
+                      <span>Gerenciar Mídia</span>
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      className="h-24 flex flex-col gap-2 border-gray-800 bg-dark-800 hover:bg-dark-700"
+                      onClick={() => {
+                        const tabsList = document.querySelector('[role="tablist"]');
+                        const profileTab = tabsList?.querySelector('[value="profile"]') as HTMLButtonElement;
+                        profileTab?.click();
+                      }}
+                    >
+                      <Star className="h-6 w-6 text-amber-500" />
+                      <span>Editar Perfil</span>
+                    </Button>
                   </div>
-                  <Input
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    onChange={handlePhotoUpload}
-                    className="bg-dark-800 border-gray-700 text-white"
-                  />
-                  <p className="text-xs text-gray-500">Selecione imagens para adicionar ao seu perfil.</p>
                 </CardContent>
               </Card>
 
               <Card className="bg-dark-900 border-gray-800">
                 <CardHeader>
-                  <CardTitle className="text-white">Stories (24h)</CardTitle>
+                  <CardTitle className="text-white">Estatísticas</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                    {profile.stories?.map((story) => (
-                      <div key={story.id} className="relative aspect-[9/16] rounded-md overflow-hidden border border-gray-700 group bg-black">
-                        {story.mediaType === 'image' ? (
-                          <Image src={story.mediaUrl} alt="Story" fill sizes="(max-width: 768px) 50vw, 25vw" className="object-cover" />
-                        ) : (
-                          <video src={story.mediaUrl} className="w-full h-full object-cover" />
-                        )}
-                        <button 
-                          onClick={() => removeStory(story.id)}
-                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                        <div className="absolute bottom-1 right-1 bg-black/50 text-white text-[10px] px-1 rounded">
-                           {story.mediaType === 'video' ? <Film className="h-3 w-3" /> : <ImageIcon className="h-3 w-3" />}
-                        </div>
-                      </div>
-                    ))}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-dark-800 p-4 rounded-lg text-center">
+                      <p className="text-2xl font-bold text-white">1.2k</p>
+                      <p className="text-xs text-gray-500">Visualizações</p>
+                    </div>
+                    <div className="bg-dark-800 p-4 rounded-lg text-center">
+                      <p className="text-2xl font-bold text-primary">85</p>
+                      <p className="text-xs text-gray-500">Favoritos</p>
+                    </div>
                   </div>
-                  <Input
-                    type="file"
-                    multiple
-                    accept="image/*,video/*"
-                    onChange={handleStoryUpload}
-                    className="bg-dark-800 border-gray-700 text-white"
-                  />
-                  <p className="text-xs text-gray-500">Adicione fotos ou vídeos curtos como stories.</p>
-                  
-                  <Button 
-                    onClick={handleSaveProfile} 
-                    disabled={isSaving}
-                    className="w-full bg-primary hover:bg-primary/90 text-white mt-4"
-                  >
-                    {isSaving ? "Salvando..." : "Salvar Alterações"}
-                  </Button>
                 </CardContent>
               </Card>
             </div>
@@ -599,7 +597,91 @@ export default function ModeloDashboardPage() {
 
             <Card className="bg-dark-900 border-gray-800">
               <CardHeader>
+                <CardTitle className="text-white">Serviços e Fetiches</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-3">
+                  <Label className="text-white text-lg">Serviços</Label>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {SERVICES_LIST.map(service => (
+                      <div key={service} className="flex items-center space-x-2">
+                        <Checkbox 
+                          id={`srv-${service}`} 
+                          checked={profile.services.includes(service)}
+                          onCheckedChange={() => toggleService(service)}
+                          className="border-gray-500 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                        />
+                        <Label htmlFor={`srv-${service}`} className="text-gray-300 cursor-pointer">{service}</Label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="text-white text-lg">Faz</Label>
+                  <div className="space-y-4">
+                    {Object.entries(FETISH_CATEGORIES).filter(([k]) => k !== 'exclusion').map(([key, category]) => (
+                      <div key={key}>
+                        <h4 className="text-gray-400 mb-2 font-medium">{category.label}</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                          {category.options.map(fetish => (
+                            <div key={fetish} className="flex items-center space-x-2">
+                              <Checkbox 
+                                id={`ft-${fetish}`}
+                                checked={profile.fetishes.includes(fetish)}
+                                onCheckedChange={() => toggleFetish(fetish)}
+                                className="border-gray-500 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                              />
+                              <Label htmlFor={`ft-${fetish}`} className="text-gray-300 text-sm cursor-pointer">{fetish}</Label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                 <div className="space-y-3">
+                  <Label className="text-white text-lg">Não faz</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {FETISH_CATEGORIES.exclusion.options.map(exclusion => (
+                      <div key={exclusion} className="flex items-center space-x-2">
+                        <Checkbox 
+                          id={`ex-${exclusion}`}
+                          checked={profile.exclusions.includes(exclusion)}
+                          onCheckedChange={() => toggleExclusion(exclusion)}
+                          className="border-red-500 data-[state=checked]:bg-red-600 data-[state=checked]:border-red-600"
+                        />
+                        <Label htmlFor={`ex-${exclusion}`} className="text-gray-300 text-sm cursor-pointer">{exclusion}</Label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+              </CardContent>
+            </Card>
+
+            <div className="flex justify-end">
+              <Button 
+                onClick={handleSaveProfile} 
+                size="lg" 
+                disabled={isSaving}
+                className="bg-primary hover:bg-primary/90 text-white"
+              >
+                {(saveStatus === "compressing" || saveStatus === "saving") && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                {saveStatus === "success" && <CheckCircle2 className="mr-2 h-4 w-4" />}
+                {saveButtonLabel}
+              </Button>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="media" className="space-y-6">
+            <Card className="bg-dark-900 border-gray-800">
+              <CardHeader>
                 <CardTitle className="text-white">Gerenciamento de Mídia</CardTitle>
+                <p className="text-sm text-gray-400">
+                  Organize suas fotos e stories. Arraste para reordenar e use o cadeado para conteúdo VIP.
+                </p>
               </CardHeader>
               <CardContent className="space-y-6">
                 
@@ -675,7 +757,7 @@ export default function ModeloDashboardPage() {
                         <p className="text-sm text-gray-500">
                           {currentPhotoItems.length === 0 
                             ? "Nenhuma foto selecionada" 
-                            : "Arraste para enviar, reordenar e definir a capa"
+                            : "Arraste para enviar, reordenar e definir a cadeado"
                           }
                         </p>
                       </div>
@@ -687,7 +769,7 @@ export default function ModeloDashboardPage() {
                     <div className="space-y-2 animate-in fade-in duration-500">
                       <Label className="text-gray-300">Fotos Selecionadas</Label>
                       <p className="text-xs text-gray-500">
-                        A primeira foto e a foto de destaque. Arraste os cards para reordenar e use o cadeado para aplicar blur ao cliente.
+                        A primeira foto é a foto de capa. Arraste os cards para reordenar e use o cadeado para aplicar blur ao cliente.
                       </p>
                       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                         {currentPhotoItems.map((photo, index) => (
@@ -707,7 +789,9 @@ export default function ModeloDashboardPage() {
                             className="relative aspect-[3/4] rounded-lg overflow-hidden border border-gray-700 group shadow-sm hover:shadow-md transition-all cursor-zoom-in"
                           >
                             <Image src={photo.url} alt={`Foto ${index + 1}`} fill sizes="(max-width: 768px) 50vw, 20vw" className={`${photo.isBlurred ? "blur-md " : ""}object-cover transition-transform duration-300 group-hover:scale-105`} />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                              <Eye className="h-8 w-8 text-white/70" />
+                            </div>
                             <div className="absolute left-2 top-2 flex items-center gap-2 z-20">
                               <div className="cursor-grab active:cursor-grabbing rounded-full bg-black/70 p-1.5 text-white hover:bg-primary transition-colors shadow-lg">
                                 <GripVertical className="h-4 w-4" />
@@ -841,6 +925,10 @@ export default function ModeloDashboardPage() {
                               />
                             )}
                             
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                              <Eye className="h-8 w-8 text-white/70" />
+                            </div>
+                            
                             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                             
                             <div className="absolute left-1.5 top-1.5 z-20">
@@ -854,7 +942,10 @@ export default function ModeloDashboardPage() {
                                 type="button"
                                 variant="destructive"
                                 size="icon"
-                                onClick={() => removeStory(story.id)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removeStory(story.id);
+                                }}
                                 className="h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-lg hover:scale-110"
                               >
                                 <X className="h-3 w-3" />
@@ -863,7 +954,10 @@ export default function ModeloDashboardPage() {
                                 type="button"
                                 variant="secondary"
                                 size="icon"
-                                onClick={() => toggleStoryBlur(story.id)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleStoryBlur(story.id);
+                                }}
                                 className={cn(
                                   "h-6 w-6 rounded-full transition-all duration-200 shadow-lg hover:scale-110",
                                   story.isBlurred 
@@ -893,74 +987,6 @@ export default function ModeloDashboardPage() {
               </CardContent>
             </Card>
 
-
-
-            <Card className="bg-dark-900 border-gray-800">
-              <CardHeader>
-                <CardTitle className="text-white">Serviços e Fetiches</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-3">
-                  <Label className="text-white text-lg">Serviços</Label>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {SERVICES_LIST.map(service => (
-                      <div key={service} className="flex items-center space-x-2">
-                        <Checkbox 
-                          id={`srv-${service}`} 
-                          checked={profile.services.includes(service)}
-                          onCheckedChange={() => toggleService(service)}
-                          className="border-gray-500 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                        />
-                        <Label htmlFor={`srv-${service}`} className="text-gray-300 cursor-pointer">{service}</Label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <Label className="text-white text-lg">Fetiches</Label>
-                  <div className="space-y-4">
-                    {Object.entries(FETISH_CATEGORIES).filter(([k]) => k !== 'exclusion').map(([key, category]) => (
-                      <div key={key}>
-                        <h4 className="text-gray-400 mb-2 font-medium">{category.label}</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                          {category.options.map(fetish => (
-                            <div key={fetish} className="flex items-center space-x-2">
-                              <Checkbox 
-                                id={`ft-${fetish}`}
-                                checked={profile.fetishes.includes(fetish)}
-                                onCheckedChange={() => toggleFetish(fetish)}
-                                className="border-gray-500 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                              />
-                              <Label htmlFor={`ft-${fetish}`} className="text-gray-300 text-sm cursor-pointer">{fetish}</Label>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                
-                 <div className="space-y-3">
-                  <Label className="text-white text-lg">Exclusões (O que não faço)</Label>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {FETISH_CATEGORIES.exclusion.options.map(exclusion => (
-                      <div key={exclusion} className="flex items-center space-x-2">
-                        <Checkbox 
-                          id={`ex-${exclusion}`}
-                          checked={profile.exclusions.includes(exclusion)}
-                          onCheckedChange={() => toggleExclusion(exclusion)}
-                          className="border-red-500 data-[state=checked]:bg-red-600 data-[state=checked]:border-red-600"
-                        />
-                        <Label htmlFor={`ex-${exclusion}`} className="text-gray-300 text-sm cursor-pointer">{exclusion}</Label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-              </CardContent>
-            </Card>
-
             <div className="flex justify-end">
               <Button 
                 onClick={handleSaveProfile} 
@@ -968,7 +994,9 @@ export default function ModeloDashboardPage() {
                 disabled={isSaving}
                 className="bg-primary hover:bg-primary/90 text-white"
               >
-                {isSaving ? "Salvando..." : "Salvar Alterações"}
+                {(saveStatus === "compressing" || saveStatus === "saving") && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                {saveStatus === "success" && <CheckCircle2 className="mr-2 h-4 w-4" />}
+                {saveButtonLabel}
               </Button>
             </div>
           </TabsContent>

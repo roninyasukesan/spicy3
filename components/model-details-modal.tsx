@@ -3,7 +3,7 @@
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Star, MapPin, Phone, MessageCircle, ShieldCheck, Flame, Heart, X, Video, Lock, ChevronLeft, ChevronRight } from "lucide-react";
+import { Star, MapPin, Phone, MessageCircle, ShieldCheck, Flame, Heart, X, Video, Lock, ChevronLeft, ChevronRight, PlayCircle } from "lucide-react";
 import Image from "next/image";
 import { useState, useEffect } from "react";
 import { useFavorites } from "@/lib/favorites";
@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import { localGetUser } from "@/lib/local-auth";
 import { LoginForm } from "@/components/login-form";
 import { SubscriptionModal } from "@/components/subscription-modal";
+import { StoryViewer } from "./story-viewer";
 import { Story, type ModelPhoto } from "@/lib/local-auth";
 import { getGalleryItemsFromModel } from "@/lib/model-mappers";
 import { toast } from "@/components/ui/use-toast";
@@ -31,6 +32,7 @@ export interface Model {
   bio?: string;
   services?: string[];
   fetishes?: string[];
+  exclusions?: string[];
   gallery?: string[];
   galleryItems?: ModelPhoto[];
   stories?: Story[];
@@ -54,13 +56,15 @@ interface ModelDetailsModalProps {
 }
 
 export function ModelDetailsModal({ model, isOpen, onClose }: ModelDetailsModalProps) {
-  const [mainImage, setMainImage] = useState<string | null>(null);
   const { isFavorite, toggle } = useFavorites();
   const router = useRouter();
+  
+  const [mainImage, setMainImage] = useState<string | null>(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [isGalleryLightboxOpen, setIsGalleryLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [isStoryViewerOpen, setIsStoryViewerOpen] = useState(false);
 
   // Reset main image when model changes
   useEffect(() => {
@@ -70,7 +74,10 @@ export function ModelDetailsModal({ model, isOpen, onClose }: ModelDetailsModalP
     }
   }, [model]);
 
+  const currentUser = localGetUser();
+
   const handleContentUnlock = () => {
+    if (!model) return;
     const user = localGetUser();
     if (!user) {
       setShowLoginModal(true);
@@ -97,6 +104,7 @@ export function ModelDetailsModal({ model, isOpen, onClose }: ModelDetailsModalP
   };
 
   const handleChat = () => {
+    if (!model) return;
     const user = localGetUser();
     
     if (!user) {
@@ -127,6 +135,7 @@ export function ModelDetailsModal({ model, isOpen, onClose }: ModelDetailsModalP
   };
 
   const handleVideoCall = () => {
+    if (!model) return;
     const user = localGetUser();
     
     if (!user) {
@@ -162,7 +171,6 @@ export function ModelDetailsModal({ model, isOpen, onClose }: ModelDetailsModalP
 
   if (!model) return null;
 
-  const currentUser = localGetUser();
   const isClient = currentUser?.role === "cliente";
   const hasContentAccess = currentUser?.plan === "vip" || currentUser?.subscribedModelIds?.includes(model.id) || currentUser?.role === "admin" || currentUser?.role === "modelo";
   const galleryItems = getGalleryItemsFromModel(model)
@@ -174,9 +182,11 @@ export function ModelDetailsModal({ model, isOpen, onClose }: ModelDetailsModalP
   const bio = model.bio || "Uma mulher sofisticada e envolvente, pronta para transformar seus momentos em memórias inesquecíveis.";
   const services = model.services || ["Jantar a dois", "Eventos", "Viagens"];
   const fetishes = model.fetishes || [];
+  const exclusions = model.exclusions || [];
   const rating = model.rating || 4.9;
   const reviews = model.reviews || 15;
   const age = model.age || 24;
+  const hasStories = model.stories && model.stories.length > 0;
 
   const openGalleryLightbox = (imageUrl: string) => {
     const targetIndex = galleryItems.findIndex((item) => item.url === imageUrl)
@@ -296,6 +306,31 @@ export function ModelDetailsModal({ model, isOpen, onClose }: ModelDetailsModalP
                 )}
               </div>
 
+              {/* Stories Preview inside Modal */}
+              {hasStories && (
+                <div className="mb-6">
+                  <h3 className="font-semibold mb-3 flex items-center gap-2">
+                    <PlayCircle className="h-4 w-4 text-pink-500" />
+                    Stories Recentes
+                  </h3>
+                  <div 
+                    className="flex items-center gap-3 p-2 bg-dark-900 rounded-xl border border-gray-800 cursor-pointer hover:bg-dark-800 transition-colors group"
+                    onClick={() => setIsStoryViewerOpen(true)}
+                  >
+                    <div className="relative w-12 h-12 rounded-full p-0.5 bg-gradient-to-br from-primary-500 to-pink-500">
+                      <div className="w-full h-full rounded-full overflow-hidden border-2 border-dark-900">
+                        <Image src={model.imageUrl} alt={model.name} fill className="object-cover" />
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-white">Ver Stories</p>
+                      <p className="text-xs text-gray-500">{model.stories?.length} momentos postados</p>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-gray-600 group-hover:text-white transition-colors" />
+                  </div>
+                </div>
+              )}
+
               <div className="text-2xl font-bold text-red-600 mb-6">
                 {model.price}
               </div>
@@ -379,7 +414,7 @@ export function ModelDetailsModal({ model, isOpen, onClose }: ModelDetailsModalP
                 <div className="mb-6">
                   <h3 className="font-semibold mb-2 flex items-center">
                     <Flame className="h-4 w-4 mr-2 text-red-500" />
-                    Fetiches:
+                    Faz:
                   </h3>
                   <div className="flex flex-wrap gap-2">
                     {fetishes.map((fetish, index) => (
@@ -388,6 +423,23 @@ export function ModelDetailsModal({ model, isOpen, onClose }: ModelDetailsModalP
                         className="bg-red-900/20 text-red-300 border border-red-900/50 hover:bg-red-900/30"
                       >
                         {fetish}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {exclusions.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="font-semibold mb-2">Não faz:</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {exclusions.map((exclusion, index) => (
+                      <Badge
+                        key={index}
+                        variant="outline"
+                        className="border-amber-700/60 text-amber-200 bg-amber-950/20"
+                      >
+                        {exclusion}
                       </Badge>
                     ))}
                   </div>
@@ -402,22 +454,22 @@ export function ModelDetailsModal({ model, isOpen, onClose }: ModelDetailsModalP
               </Button>
               <div className="grid grid-cols-2 gap-3">
                 <Button 
-                    size="lg" 
-                    variant="outline" 
-                    className="w-full border-red-600 text-red-600 hover:bg-red-600 hover:text-white"
-                    onClick={handleChat}
+                  size="lg" 
+                  variant="outline" 
+                  className="w-full border-red-600 text-red-600 hover:bg-red-600 hover:text-white"
+                  onClick={handleChat}
                 >
-                    <MessageCircle className="h-5 w-5 mr-2" />
-                    Chat
+                  <MessageCircle className="h-5 w-5 mr-2" />
+                  Chat
                 </Button>
                 <Button 
-                    size="lg" 
-                    variant="outline" 
-                    className="w-full border-red-600 text-red-600 hover:bg-red-600 hover:text-white"
-                    onClick={handleVideoCall}
+                  size="lg" 
+                  variant="outline" 
+                  className="w-full border-red-600 text-red-600 hover:bg-red-600 hover:text-white"
+                  onClick={handleVideoCall}
                 >
-                    <Video className="h-5 w-5 mr-2" />
-                    Vídeo
+                  <Video className="h-5 w-5 mr-2" />
+                  Vídeo
                 </Button>
               </div>
             </div>
@@ -512,6 +564,18 @@ export function ModelDetailsModal({ model, isOpen, onClose }: ModelDetailsModalP
           </div>
         )}
       </DialogContent>
+
+      {isStoryViewerOpen && (
+        <StoryViewer
+          isOpen={isStoryViewerOpen}
+          onClose={() => setIsStoryViewerOpen(false)}
+          stories={model.stories || []}
+          modelName={model.name}
+          modelImage={model.imageUrl}
+          modelId={model.id}
+          hasAccess={hasContentAccess}
+        />
+      )}
       
       <Dialog open={showLoginModal} onOpenChange={setShowLoginModal}>
         <DialogContent className="bg-transparent border-none p-0 max-w-md">

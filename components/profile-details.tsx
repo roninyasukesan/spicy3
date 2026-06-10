@@ -54,6 +54,8 @@ export function ProfileDetails({ profileId }: ProfileDetailsProps) {
     isVerified: true,
     bio: "Acompanhante de luxo, discreta e elegante. Formada em administração, falo inglês fluente e adoro viajar. Atendo em hotéis de alto padrão e aceito viagens nacionais e internacionais.",
     services: ["Acompanhante", "Jantar", "Eventos", "Viagens"],
+    fetishes: ["Sexo anal", "Beijo grego", "Dominação feminina (FemDom)", "Masturbação mútua"],
+    exclusions: ["Não atende casais", "Não grava vídeos"],
     languages: ["Português", "Inglês", "Espanhol"],
     paymentMethods: ["Dinheiro", "Pix", "Cartão"],
     workingHours: "24h",
@@ -227,17 +229,45 @@ export function ProfileDetails({ profileId }: ProfileDetailsProps) {
             </CardContent>
           </Card>
 
-          {/* Services */}
+          {/* Services, Faz & Não faz */}
           <Card className="bg-dark-800/50 border-gray-700">
-            <CardContent className="p-6">
-              <h3 className="font-semibold text-white mb-4">Serviços</h3>
-              <div className="flex flex-wrap gap-2">
-                {profile.services.map((service) => (
-                  <Badge key={service} variant="outline" className="border-primary-500 text-primary-500">
-                    {service}
-                  </Badge>
-                ))}
+            <CardContent className="p-6 space-y-6">
+              <div>
+                <h3 className="font-semibold text-white mb-4">Serviços</h3>
+                <div className="flex flex-wrap gap-2">
+                  {profile.services.map((service) => (
+                    <Badge key={service} variant="outline" className="border-primary-500 text-primary-500">
+                      {service}
+                    </Badge>
+                  ))}
+                </div>
               </div>
+
+              {profile.fetishes && profile.fetishes.length > 0 && (
+                <div>
+                  <h3 className="font-semibold text-white mb-4">Faz</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {profile.fetishes.map((fetish) => (
+                      <Badge key={fetish} className="bg-red-900/20 text-red-300 border border-red-900/50 hover:bg-red-900/30">
+                        {fetish}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {profile.exclusions && profile.exclusions.length > 0 && (
+                <div>
+                  <h3 className="font-semibold text-white mb-4">Não faz</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {profile.exclusions.map((exclusion) => (
+                      <Badge key={exclusion} variant="outline" className="border-amber-700/60 text-amber-200 bg-amber-950/20">
+                        {exclusion}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 

@@ -1,4 +1,4 @@
-import { type UserRole } from "@/lib/utils"
+import { type UserRole, slugify } from "@/lib/utils"
 import { mockProfiles } from "./mock-profiles"
 
 export type LocalUser = {
@@ -33,6 +33,10 @@ function safeSetItem(key: string, value: string): boolean {
     console.error(`Failed to save to localStorage [${key}]:`, error)
     return false
   }
+}
+
+function getSerializedByteLength(value: string): number {
+  return new TextEncoder().encode(value).length
 }
 
 export const LOCAL_USERS: LocalUserWithPassword[] = [
@@ -258,16 +262,93 @@ const SEED_PROFILES: Record<string, ModelProfile> = {
   }
 }
 
-export const demoUsers: DemoUser[] = LOCAL_USERS.map(user => ({ ...user }))
+type MockEmailMapping = {
+  id: string
+  name: string
+  email: string
+  legacyEmail: string
+}
+
+function buildMockEmailMappings(): MockEmailMapping[] {
+  const usedEmails = new Set<string>()
+
+  return mockProfiles.map((profile) => {
+    const baseLocalPart = slugify(profile.name).replace(/-/g, "") || `mock${profile.id}`
+    let localPart = baseLocalPart
+
+    if (usedEmails.has(localPart)) {
+      localPart = `${baseLocalPart}${profile.id}`
+    }
+
+    usedEmails.add(localPart)
+
+    return {
+      id: profile.id,
+      name: profile.name,
+      email: `${localPart}@spicy.com`,
+      legacyEmail: `mock${profile.id}@spicy.com`,
+    }
+  })
+}
+
+function resolveMockEmail(email: string): string {
+  const normalizedEmail = email.trim().toLowerCase()
+  const mapping = buildMockEmailMappings().find(
+    (item) => item.legacyEmail.toLowerCase() === normalizedEmail || item.email.toLowerCase() === normalizedEmail
+  )
+
+  return mapping?.email || normalizedEmail
+}
+
+function buildDefaultDemoUsers(): DemoUser[] {
+  const usersMap = new Map<string, DemoUser>()
+
+  LOCAL_USERS.forEach((user) => {
+    usersMap.set(user.email.toLowerCase(), { ...user })
+  })
+
+  buildMockEmailMappings().forEach((profile) => {
+    const email = profile.email
+
+    if (!usersMap.has(email.toLowerCase())) {
+      usersMap.set(email.toLowerCase(), {
+        email,
+        password: "123",
+        role: "modelo",
+        name: profile.name,
+      })
+    }
+  })
+
+  return Array.from(usersMap.values())
+}
+
+export const demoUsers: DemoUser[] = buildDefaultDemoUsers()
 
 export function getUsers(): DemoUser[] {
-  if (typeof window === "undefined") return LOCAL_USERS
+  const defaultUsers = buildDefaultDemoUsers()
+  if (typeof window === "undefined") return defaultUsers
   const raw = window.localStorage.getItem(USERS_STORAGE_KEY)
-  if (!raw) return LOCAL_USERS
+  if (!raw) return defaultUsers
   try {
-    return JSON.parse(raw) as DemoUser[]
+    const storedUsers = JSON.parse(raw) as DemoUser[]
+    const usersMap = new Map<string, DemoUser>()
+
+    defaultUsers.forEach((user) => {
+      usersMap.set(user.email.toLowerCase(), user)
+    })
+
+    storedUsers.forEach((user) => {
+      const resolvedEmail = resolveMockEmail(user.email)
+      usersMap.set(resolvedEmail.toLowerCase(), {
+        ...user,
+        email: resolvedEmail,
+      })
+    })
+
+    return Array.from(usersMap.values())
   } catch {
-    return LOCAL_USERS
+    return defaultUsers
   }
 }
 
@@ -316,7 +397,7 @@ export function updateUserPlan(email: string, plan: "free" | "vip") {
 }
 
 export async function localSignIn(email: string, password: string): Promise<{ user: LocalUser }> {
-  const normalizedEmail = email.trim().toLowerCase()
+  const normalizedEmail = resolveMockEmail(email)
   const users = getUsers()
   
   const userExists = users.find(u => u.email.toLowerCase() === normalizedEmail)
@@ -526,7 +607,22 @@ export function normalizeModelProfile(profile: ModelProfile): ModelProfile {
   }
 }
 
-export function getModelProfile(email: string): ModelProfile | null {
+export function getModelProfile(id: string): ModelProfile | null {
+  // 1. Try to find by email
+  let email = resolveMockEmail(id);
+  
+  // If id is not an email, it might be a slug
+  if (!id.includes("@")) {
+    const allProfiles = getAllLocalProfiles();
+    const found = allProfiles.find(p => slugify(p.artisticName) === id);
+    if (found) {
+      email = found.email;
+    } else {
+      // If not found by slug, and not an email, return null
+      return null;
+    }
+  }
+
   // Check local storage first
   if (typeof window !== "undefined") {
     const allProfilesRaw = window.localStorage.getItem(MODEL_PROFILE_KEY)
@@ -555,6 +651,7 @@ export function getModelProfile(email: string): ModelProfile | null {
 export function saveModelProfile(email: string, profile: ModelProfile) {
   if (typeof window === "undefined") return
   try {
+    const resolvedEmail = resolveMockEmail(email)
     const allProfilesRaw = window.localStorage.getItem(MODEL_PROFILE_KEY)
     let allProfiles: Record<string, ModelProfile> = {}
     
@@ -567,8 +664,18 @@ export function saveModelProfile(email: string, profile: ModelProfile) {
       }
     }
     
-    allProfiles[email] = normalizeModelProfile({ ...profile, email })
-    return safeSetItem(MODEL_PROFILE_KEY, JSON.stringify(allProfiles))
+    allProfiles[resolvedEmail] = normalizeModelProfile({ ...profile, email: resolvedEmail })
+    const saved = safeSetItem(MODEL_PROFILE_KEY, JSON.stringify(allProfiles))
+
+    if (saved) {
+      window.dispatchEvent(
+        new CustomEvent("spicy-profile-change", {
+          detail: { email: resolvedEmail },
+        })
+      )
+    }
+
+    return saved
   } catch (error) {
     if (error instanceof Error && (error.name === 'QuotaExceededError' || error.name === 'NS_ERROR_DOM_QUOTA_REACHED')) {
       return false
@@ -579,37 +686,69 @@ export function saveModelProfile(email: string, profile: ModelProfile) {
   }
 }
 
+export function estimateModelProfileStorageSize(email: string, profile: ModelProfile): number {
+  if (typeof window === "undefined") return 0
+
+  try {
+    const resolvedEmail = resolveMockEmail(email)
+    const allProfilesRaw = window.localStorage.getItem(MODEL_PROFILE_KEY)
+    let allProfiles: Record<string, ModelProfile> = {}
+
+    if (allProfilesRaw) {
+      try {
+        allProfiles = JSON.parse(allProfilesRaw)
+      } catch {
+        allProfiles = {}
+      }
+    }
+
+    allProfiles[resolvedEmail] = normalizeModelProfile({ ...profile, email: resolvedEmail })
+    return getSerializedByteLength(JSON.stringify(allProfiles))
+  } catch (error) {
+    console.error("Failed to estimate model profile storage size:", error)
+    return 0
+  }
+}
+
 export function getAllLocalProfiles(): (ModelProfile & { email: string })[] {
   const profilesMap: Record<string, ModelProfile & { email: string }> = {}
+  const mockEmailMappings = buildMockEmailMappings()
 
   // 1. Add mock profiles from mock-profiles.ts
   mockProfiles.forEach(mp => {
-    const email = `mock${mp.id}@spicy.com`;
+    const mapping = mockEmailMappings.find((item) => item.id === mp.id)
+    const email = mapping?.email || `mock${mp.id}@spicy.com`
+    
+    // Check if we have a seed for this specific name/email to get stories/photos
+    const seedMatch = Object.values(SEED_PROFILES).find(s => 
+      s.artisticName.toLowerCase().includes(mp.name.toLowerCase())
+    );
+
     profilesMap[email] = normalizeModelProfile({
       artisticName: mp.name,
-      phone: "",
+      phone: seedMatch?.phone || "",
       city: mp.city,
       age: mp.age.toString(),
-      bio: mp.bio || "",
-      services: mp.services || [],
-      fetishes: mp.fetishes || [],
+      bio: mp.bio || seedMatch?.bio || "",
+      services: mp.services || seedMatch?.services || [],
+      fetishes: mp.fetishes || seedMatch?.fetishes || [],
       exclusions: [],
       priceRange: mp.price,
       characteristics: {
-        hairColor: mp.characteristics?.hairColor || "Morena",
-        ethnicity: mp.characteristics?.ethnicity || "Branca",
-        bodyType: mp.characteristics?.bodyType || "Curvilínea",
-        height: mp.characteristics?.height || "1.70m",
+        hairColor: mp.characteristics?.hairColor || seedMatch?.characteristics.hairColor || "Morena",
+        ethnicity: mp.characteristics?.ethnicity || seedMatch?.characteristics.ethnicity || "Branca",
+        bodyType: mp.characteristics?.bodyType || seedMatch?.characteristics.bodyType || "Curvilínea",
+        height: mp.characteristics?.height || seedMatch?.characteristics.height || "1.70m",
         age: mp.age.toString(),
-        eyes: mp.characteristics?.eyes || "Castanho",
-        breasts: mp.characteristics?.breasts || "Médios",
-        tattoos: mp.characteristics?.tattoos || "Não",
-        piercings: mp.characteristics?.piercings || "Não"
+        eyes: mp.characteristics?.eyes || seedMatch?.characteristics.eyes || "Castanho",
+        breasts: mp.characteristics?.breasts || seedMatch?.characteristics.breasts || "Médios",
+        tattoos: mp.characteristics?.tattoos || seedMatch?.characteristics.tattoos || "Não",
+        piercings: mp.characteristics?.piercings || seedMatch?.characteristics.piercings || "Não"
       },
-      photos: mp.gallery || [mp.imageUrl],
-      coverImage: mp.imageUrl,
+      photos: mp.gallery || seedMatch?.photos || [mp.imageUrl],
+      coverImage: mp.imageUrl || seedMatch?.coverImage,
       email: email,
-      stories: []
+      stories: seedMatch?.stories || []
     });
   })
 
@@ -625,11 +764,12 @@ export function getAllLocalProfiles(): (ModelProfile & { email: string })[] {
       try {
         const localProfiles = JSON.parse(allProfilesRaw)
         Object.keys(localProfiles).forEach(email => {
+          const resolvedEmail = resolveMockEmail(email)
           // If profile exists in seed, merge. If not (new user), just use local.
-          if (profilesMap[email]) {
-            profilesMap[email] = normalizeModelProfile({ ...profilesMap[email], ...localProfiles[email], email })
+          if (profilesMap[resolvedEmail]) {
+            profilesMap[resolvedEmail] = normalizeModelProfile({ ...profilesMap[resolvedEmail], ...localProfiles[email], email: resolvedEmail })
           } else {
-            profilesMap[email] = normalizeModelProfile({ ...localProfiles[email], email })
+            profilesMap[resolvedEmail] = normalizeModelProfile({ ...localProfiles[email], email: resolvedEmail })
           }
         })
       } catch {

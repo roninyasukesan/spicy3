@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { X, ChevronLeft, ChevronRight, Lock } from "lucide-react";
 import Image from "next/image";
-import { cn } from "@/lib/utils";
+import { cn, getProfileSearchPath } from "@/lib/utils";
 import { Story } from "@/lib/local-auth";
 import { Progress } from "@/components/ui/progress";
 import { useRouter } from "next/navigation";
@@ -46,7 +46,7 @@ export function StoryViewer({
   // Fix: StoryViewer should probably just take a callback for name click
   // or use router directly if we want it to be more self-contained.
   const handleNameClick = () => {
-    router.push(`/busca?modelId=${encodeURIComponent(modelId)}`);
+    router.push(getProfileSearchPath(modelName, modelId));
   };
 
   const duration = (currentStory?.duration || 5) * 1000; // ms
@@ -234,7 +234,7 @@ export function StoryViewer({
                   <p className="text-gray-300 text-sm">Assine para desbloquear este story e muito mais.</p>
                 </div>
                 <Button 
-                  onClick={() => router.push(`/busca?modelId=${encodeURIComponent(modelId)}`)}
+                  onClick={() => router.push(getProfileSearchPath(modelName, modelId))}
                   className="bg-primary hover:bg-primary/90 text-white w-full"
                 >
                   Ver Planos
