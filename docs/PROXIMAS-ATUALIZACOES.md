@@ -1,6 +1,6 @@
 # 📋 Próximas Atualizações Recomendadas - Spicy3 MVP
 
-**Data da Análise:** 25/01/2026  
+**Data da Análise:** 10/06/2026
 **Status do Projeto:** MVP em desenvolvimento avançado
 
 ---
@@ -94,9 +94,118 @@ Após revisão completa dos arquivos de documentação (`mvp-roadmap.md`, `mvp-c
 
 ---
 
+### 4. Migrar Usuários para Supabase e Mídia para Google Drive
+**Status:** Planejado (integração parcial com Supabase e persistência local ativa)
+**Problema:** Usuários, perfis e mídias ainda dependem de `localStorage`. Fotos, stories e áudios são armazenados como Base64 dentro do perfil, o que limita capacidade, segurança, sincronização entre dispositivos e administração centralizada.
+
+**Arquitetura Definida:**
+- **Supabase Auth:** cadastro, login, recuperação de senha e sessão.
+- **Supabase Database:** usuários, roles, perfis, assinaturas, permissões e metadados das mídias.
+- **Google Drive API:** armazenamento dos arquivos de fotos, vídeos, stories, áudios e documentos.
+- **Next.js API Routes:** camada segura entre o navegador, Supabase e Google Drive.
+- **LocalAuth:** manter apenas como fallback de demonstração durante a migração.
+
+**Modelo de Dados Proposto:**
+- [ ] Consolidar `profiles` com `user_id`, role, status, plano e dados públicos.
+- [ ] Criar tabela `profile_media` com:
+  - [ ] `id`, `profile_id` e `drive_file_id`
+  - [ ] `type`: `photo` | `story` | `video` | `audio` | `document`
+  - [ ] `mime_type`, tamanho, posição e data de criação
+  - [ ] `is_cover`, `is_blurred` e `expires_at`
+- [ ] Criar índices e relacionamentos para consulta por perfil, tipo e ordem.
+- [ ] Aplicar Row Level Security (RLS) para proprietário, admin e conteúdo VIP.
+
+**Rotas de Mídia:**
+- [ ] `POST /api/media/upload` - validar sessão, comprimir/validar e enviar ao Drive.
+- [ ] `GET /api/media/[id]` - verificar permissão e entregar ou redirecionar a mídia.
+- [ ] `DELETE /api/media/[id]` - remover do Drive e do Supabase.
+- [ ] `PATCH /api/media/[id]` - atualizar capa, blur e metadados.
+- [ ] `PATCH /api/media/reorder` - persistir a ordem da galeria e dos stories.
+
+**Gestão de Usuários:**
+- [ ] Substituir `getUsers()`, `addUser()`, `removeUser()` e `updateUserPlan()` locais.
+- [ ] Criar rotas administrativas protegidas para listar, criar, editar, suspender e excluir usuários.
+- [ ] Usar `SUPABASE_SERVICE_ROLE_KEY` apenas no servidor.
+- [ ] Registrar alterações administrativas em `admin_audit_log`.
+- [ ] Sincronizar perfil público com o usuário autenticado pelo `user_id`.
+
+**Gestão de Mídia:**
+- [ ] Manter compressão de imagens no cliente antes do upload.
+- [ ] Parar de salvar Data URLs/Base64 no `localStorage`.
+- [ ] Salvar no Supabase somente o ID do arquivo, metadados e regras de acesso.
+- [ ] Organizar arquivos do Drive por ambiente e perfil.
+- [ ] Implementar exclusão coordenada entre Drive e Supabase.
+- [ ] Implementar cache controlado para reduzir leituras repetidas do Drive.
+- [ ] Não tornar arquivos VIP publicamente compartilháveis no Google Drive.
+
+**Segurança:**
+- [ ] Credenciais do Google e a service role do Supabase devem existir somente no servidor.
+- [ ] Validar tipo MIME, tamanho máximo e proprietário em todos os uploads.
+- [ ] Verificar plano VIP ou assinatura antes de liberar conteúdo protegido.
+- [ ] Proibir acesso direto do navegador à conta de serviço do Google.
+- [ ] Implementar rate limiting e auditoria nas rotas de upload e exclusão.
+
+**Variáveis de Ambiente:**
+```env
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+
+GOOGLE_SERVICE_ACCOUNT_EMAIL=
+GOOGLE_PRIVATE_KEY=
+GOOGLE_DRIVE_FOLDER_ID=
+```
+
+**Observação sobre Plugins:**
+- O conector Google Drive disponível para agentes auxilia tarefas durante o desenvolvimento.
+- A aplicação publicada deverá usar a Google Drive API no servidor; o plugin não substitui autenticação OAuth ou service account em produção.
+- A integração Supabase será feita com `@supabase/supabase-js`, SQL migrations e API Routes.
+
+**Estratégia de Migração:**
+1. Criar schema, políticas RLS e cliente Supabase de servidor.
+2. Implementar serviço e rotas da Google Drive API.
+3. Migrar upload, exclusão, capa, blur e ordenação dos dashboards.
+4. Migrar perfil público e listagens para consultas Supabase.
+5. Migrar gestão administrativa de usuários.
+6. Importar dados locais existentes quando necessário.
+7. Manter fallback local temporário, atrás de configuração explícita.
+8. Remover a persistência Base64 após validação completa.
+
+**Critério de Aceitação:**
+- Usuários e sessões são gerenciados pelo Supabase.
+- Admin consegue administrar usuários sem depender do navegador atual.
+- Mídias permanecem disponíveis após trocar de dispositivo ou limpar o navegador.
+- Fotos, stories, vídeos e áudios são armazenados no Google Drive.
+- Supabase contém somente dados estruturados e referências das mídias.
+- Conteúdo VIP não pode ser acessado sem autorização.
+- Exclusão de mídia remove o arquivo do Drive e seu registro no banco.
+- O modo demo local continua disponível apenas quando explicitamente habilitado.
+
+**Arquivos Afetados:**
+- `lib/local-auth.ts`
+- `lib/supabase.ts`
+- `lib/db/profiles.ts`
+- `lib/db/storage.ts` (substituir por serviço Google Drive)
+- `lib/image-utils.ts`
+- `app/api/media/*` (novo)
+- `app/api/admin/users/*` (novo)
+- `app/dashboard/admin/page.tsx`
+- `app/dashboard/admin/editar-modelo/page.tsx`
+- `app/dashboard/modelo/page.tsx`
+- `components/model-profile.tsx`
+- `components/profile-details-fetched.tsx`
+- `supabase/migrations/*`
+
+**Dependências Previstas:**
+```bash
+npm install googleapis
+```
+
+---
+
 ## 🔥 Prioridade Alta (P1) - Próximas 2 Semanas
 
-### 4. Integração Stripe para Monetização Real
+### 5. Integração Stripe para Monetização Real
 **Status:** Pendente (monetização local apenas)  
 **Impacto:** Sem receita real, MVP não é viável comercialmente.
 
@@ -132,7 +241,7 @@ npm install stripe @stripe/stripe-js
 
 ---
 
-### 5. Observabilidade: Analytics de Produto
+### 6. Observabilidade: Analytics de Produto
 **Status:** Pendente  
 **Problema:** Não há visibilidade sobre comportamento dos usuários.
 
@@ -162,7 +271,7 @@ npm install stripe @stripe/stripe-js
 
 ---
 
-### 6. Monitoramento de Erros com Sentry
+### 7. Monitoramento de Erros com Sentry
 **Status:** Pendente  
 **Problema:** Erros em produção não são capturados nem reportados.
 
@@ -192,7 +301,7 @@ npm install @sentry/nextjs
 
 ---
 
-### 7. Fluxo Completo de Administração e Moderação
+### 8. Fluxo Completo de Administração e Moderação
 **Status:** Parcial (UI existe, lógica incompleta)
 
 **Ações:**
@@ -231,7 +340,7 @@ npm install @sentry/nextjs
 
 ## ⚡ Prioridade Média (P2) - Próximo Mês
 
-### 8. SEO e Performance
+### 9. SEO e Performance
 **Status:** Pendente
 
 **Ações:**
@@ -259,7 +368,7 @@ npm install @sentry/nextjs
 
 ---
 
-### 9. LGPD e Conformidade Legal
+### 10. LGPD e Conformidade Legal
 **Status:** Funciona (páginas existem, faltam consentimentos)
 
 **Ações:**
@@ -289,7 +398,7 @@ npm install @sentry/nextjs
 
 ---
 
-### 10. Paginação e Performance na Busca
+### 11. Paginação e Performance na Busca
 **Status:** Funciona (dados locais), falta paginação real
 
 **Ações:**
@@ -309,24 +418,24 @@ npm install @sentry/nextjs
 
 ## 🎨 Melhorias Incrementais (P3) - Diferenciais Competitivos
 
-### 11. Busca Avançada
+### 12. Busca Avançada
 - [ ] Salvamento de buscas favoritas
 - [ ] Alertas por email quando novos perfis correspondem aos filtros
 - [ ] Ranking por relevância (algoritmo baseado em engajamento, qualidade, proximidade)
 - [ ] Busca por mapa (integração com Google Maps)
 
-### 12. Chat Avançado
+### 13. Chat Avançado
 - [ ] Templates de mensagens rápidas
 - [ ] Agendamento de encontros direto no chat (calendário)
 - [ ] Anexos de imagem (com moderação automática)
 - [ ] Tradutor automático para conversas internacionais
 
-### 13. Programa de Indicação
+### 14. Programa de Indicação
 - [ ] Link único de indicação por usuário
 - [ ] Bônus/desconto para indicador e indicado
 - [ ] Dashboard de indicações no perfil
 
-### 14. Sistema de Reviews e Reputação
+### 15. Sistema de Reviews e Reputação
 - [ ] Clientes podem avaliar modelos após interação
 - [ ] Sistema de badges (verificado, top rated, respondedor rápido)
 - [ ] Média de avaliação visível no card
@@ -377,7 +486,8 @@ npm install @sentry/nextjs
    - 🔧 Testes de limites por plano
 
 4. **Quinta-feira:** 
-   - 📋 Planejamento da integração Stripe (P1 #4)
+   - 📋 Planejamento da migração Supabase + Google Drive (P0 #4)
+   - 📋 Planejamento da integração Stripe (P1 #5)
    - 📋 Criar conta e configurar produtos
 
 5. **Sexta-feira:** 
@@ -406,6 +516,9 @@ npm install posthog-js
 # Para performance
 npm install next-pwa (PWA support)
 npm install sharp (otimização de imagens)
+
+# Para armazenamento de mídia no Google Drive
+npm install googleapis
 ```
 
 ---
@@ -440,4 +553,4 @@ Todas as mudanças listadas neste documento devem seguir o processo **Human-in-t
 - DOCUMENTATION_MODIFICATIONS.md
 - FIXES_APPLIED.md
 
-**Última atualização:** 25/01/2026 18:04
+**Última atualização:** 10/06/2026
