@@ -5,7 +5,7 @@ import { ProfileCard } from "@/components/profile-card";
 import { ModelDetailsModal, Model } from "@/components/model-details-modal";
 import { StoryViewer } from "@/components/story-viewer";
 import { useState, useEffect } from "react";
-import { getAllLocalProfiles } from "@/lib/local-auth";
+import { getAllLocalProfiles, subscribeToModelProfileChanges } from "@/lib/local-auth";
 import { mapLocalProfileToModel } from "@/lib/model-mappers";
 
 export function ProfilesList() {
@@ -15,26 +15,31 @@ export function ProfilesList() {
   const [profiles, setProfiles] = useState<Model[]>([]);
 
   useEffect(() => {
-    const localProfiles = getAllLocalProfiles();
-    const mapped: Model[] = localProfiles.map((p, index) => {
-      return {
-        ...mapLocalProfileToModel(p),
-        rating: 4.9,
-        isVerified: true,
-        characteristics: {
-           hairColor: p.characteristics.hairColor,
-           ethnicity: p.characteristics.ethnicity,
-           bodyType: p.characteristics.bodyType,
-           height: p.characteristics.height,
-           ageRange: p.characteristics.age,
-           eyes: p.characteristics.eyes,
-           breasts: p.characteristics.breasts,
-           tattoos: p.characteristics.tattoos,
-           piercings: p.characteristics.piercings
-        }
-      };
-    });
-    setProfiles(mapped);
+    const loadProfiles = () => {
+      const localProfiles = getAllLocalProfiles();
+      const mapped: Model[] = localProfiles.map((p) => {
+        return {
+          ...mapLocalProfileToModel(p),
+          rating: 4.9,
+          isVerified: true,
+          characteristics: {
+             hairColor: p.characteristics.hairColor,
+             ethnicity: p.characteristics.ethnicity,
+             bodyType: p.characteristics.bodyType,
+             height: p.characteristics.height,
+             ageRange: p.characteristics.age,
+             eyes: p.characteristics.eyes,
+             breasts: p.characteristics.breasts,
+             tattoos: p.characteristics.tattoos,
+             piercings: p.characteristics.piercings
+          }
+        };
+      });
+      setProfiles(mapped);
+    };
+
+    loadProfiles();
+    return subscribeToModelProfileChanges(loadProfiles);
   }, []);
 
   const handleOpenModal = (model: Model) => {

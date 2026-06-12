@@ -1,7 +1,10 @@
-import { createClient } from '@supabase/supabase-js';
+import { createBrowserClient } from "@supabase/ssr"
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
+const key =
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  ""
 
 export function hasSupabaseConfig() {
   return Boolean(url && key);
@@ -61,4 +64,21 @@ function makeMock(): any {
   };
 }
 
-export const supabase: any = hasSupabaseConfig() ? createClient(url, key) : makeMock();
+let client: any = null
+
+function getClient() {
+  if (!client) {
+    client = hasSupabaseConfig() ? createBrowserClient(url, key) : makeMock()
+  }
+  return client
+}
+
+export const supabase: any = new Proxy(
+  {},
+  {
+    get(_target, property) {
+      const value = getClient()[property]
+      return typeof value === "function" ? value.bind(getClient()) : value
+    },
+  }
+)

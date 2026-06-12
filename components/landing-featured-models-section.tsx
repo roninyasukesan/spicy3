@@ -3,48 +3,51 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MapPin, DollarSign, Heart } from "lucide-react";
+import { MapPin, DollarSign, Heart, Lock } from "lucide-react";
 import { AnimatedText } from "@/components/animated-text";
 import Image from "next/image";
 import { useState, useEffect } from "react";
 import { ModelDetailsModal, Model } from "@/components/model-details-modal";
 import { useFavorites } from "@/lib/favorites";
 import { cn } from "@/lib/utils";
-import { getAllLocalProfiles, ModelProfile } from "@/lib/local-auth";
-import { mapLocalProfileToModel } from "@/lib/model-mappers";
+import { getAllLocalProfiles, localGetUser, subscribeToModelProfileChanges } from "@/lib/local-auth";
+import { getGalleryItemsFromModel, mapLocalProfileToModel } from "@/lib/model-mappers";
 
 export function LandingFeaturedModelsSection() {
   const [selectedModel, setSelectedModel] = useState<Model | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const { isFavorite, toggle } = useFavorites();
   const [models, setModels] = useState<Model[]>([]);
+  const currentUser = localGetUser();
 
   useEffect(() => {
-    // Load models from local storage (simulating DB)
-    const localProfiles = getAllLocalProfiles();
-    
-    // Transform ModelProfile to Model
-    const mappedModels: Model[] = localProfiles.map((profile, index) => {
-       return {
-         ...mapLocalProfileToModel(profile),
-         rating: 5.0, // Default for now
-         reviews: Math.floor(Math.random() * 50) + 10, // Random reviews count
-         isVerified: true,
-         characteristics: {
-            hairColor: profile.characteristics.hairColor,
-            ethnicity: profile.characteristics.ethnicity,
-            bodyType: profile.characteristics.bodyType,
-            height: profile.characteristics.height,
-            ageRange: profile.characteristics.age,
-            eyes: profile.characteristics.eyes,
-            breasts: profile.characteristics.breasts,
-            tattoos: profile.characteristics.tattoos,
-            piercings: profile.characteristics.piercings
-         }
-       };
-    });
+    const loadModels = () => {
+      const localProfiles = getAllLocalProfiles();
+      const mappedModels: Model[] = localProfiles.map((profile) => {
+        return {
+          ...mapLocalProfileToModel(profile),
+          rating: 5.0,
+          reviews: Math.floor(Math.random() * 50) + 10,
+          isVerified: true,
+          characteristics: {
+             hairColor: profile.characteristics.hairColor,
+             ethnicity: profile.characteristics.ethnicity,
+             bodyType: profile.characteristics.bodyType,
+             height: profile.characteristics.height,
+             ageRange: profile.characteristics.age,
+             eyes: profile.characteristics.eyes,
+             breasts: profile.characteristics.breasts,
+             tattoos: profile.characteristics.tattoos,
+             piercings: profile.characteristics.piercings
+          }
+        };
+      });
 
-    setModels(mappedModels);
+      setModels(mappedModels);
+    };
+
+    loadModels();
+    return subscribeToModelProfileChanges(loadModels);
   }, []);
 
   const handleOpenModal = (model: Model) => {
@@ -65,12 +68,26 @@ export function LandingFeaturedModelsSection() {
           <h2 className="text-4xl font-bold text-center text-white mb-12">Modelos em Destaque</h2>
         </AnimatedText>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-          {models.slice(0, 4).map((model, index) => (
+          {models.slice(0, 4).map((model, index) => {
+            const coverPhoto = getGalleryItemsFromModel(model)[0];
+            const hasContentAccess =
+              currentUser?.plan === "vip" ||
+              currentUser?.subscribedModelIds?.includes(model.id) ||
+              currentUser?.role === "admin" ||
+              currentUser?.role === "modelo";
+            const shouldBlurCover = Boolean(coverPhoto?.isBlurred && !hasContentAccess);
+
+            return (
             <AnimatedText key={model.id} delay={index * 0.1}>
               <Card className="bg-dark-900 border-gray-800 text-white rounded-lg overflow-hidden shadow-lg transform hover:-translate-y-2 transition-transform duration-300">
                 <CardContent className="p-0">
                   <div className="relative h-56 sm:h-60 md:h-72 w-full cursor-pointer" onClick={() => handleOpenModal(model)}>
-                    <Image src={model.imageUrl} alt={model.name} fill sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw" style={{ objectFit: "cover" }} className="w-full h-full" />
+                    <Image src={coverPhoto?.url || model.imageUrl} alt={model.name} fill sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw" style={{ objectFit: "cover" }} className={cn("h-full w-full", shouldBlurCover && "blur-md")} />
+                    {shouldBlurCover && (
+                      <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/45">
+                        <Lock className="h-8 w-8 text-white/80" />
+                      </div>
+                    )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div>
                     <div className="absolute bottom-4 left-4">
                       <h3 className="text-2xl font-bold">{model.name}</h3>
@@ -106,7 +123,7 @@ export function LandingFeaturedModelsSection() {
                 </CardContent>
               </Card>
             </AnimatedText>
-          ))}
+          )})}
         </div>
       </div>
       <ModelDetailsModal 

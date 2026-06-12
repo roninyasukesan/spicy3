@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -20,7 +20,7 @@ import {
 } from "lucide-react"
 import { fetchProfileById } from "@/lib/db/profiles"
 import Image from "next/image"
-import { localGetUser } from "@/lib/local-auth"
+import { localGetUser, subscribeToModelProfileChanges } from "@/lib/local-auth"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { LoginForm } from "@/components/login-form"
 import { SubscriptionModal } from "@/components/subscription-modal"
@@ -33,10 +33,13 @@ interface ProfileDetailsProps {
 
 export function ProfileDetailsFetched({ profileId }: ProfileDetailsProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const isPublicPreview = searchParams.get("preview") === "public"
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [currentUser, setCurrentUser] = useState<any | null>(null)
   const [profile, setProfile] = useState<any | null>(null)
+  const [profileNotFound, setProfileNotFound] = useState(false)
   const [showLoginModal, setShowLoginModal] = useState(false)
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false)
 
@@ -52,35 +55,11 @@ export function ProfileDetailsFetched({ profileId }: ProfileDetailsProps) {
       const p = await fetchProfileById(profileId)
       if (!mounted) return
       if (!p) {
-        setProfile({
-          id: profileId,
-          name: "Isabella Santos",
-          age: 25,
-          city: "São Paulo - Jardins",
-          price: "R$ 400/h",
-          rating: 4.9,
-          reviews: 127,
-          isVip: true,
-          isOnline: true,
-          isVerified: true,
-          bio: "Acompanhante de luxo, discreta e elegante.",
-          services: ["Acompanhante", "Jantar", "Eventos", "Viagens"],
-          fetishes: ["Sexo anal", "Beijo grego", "Massagem erótica"],
-          exclusions: ["Não atende casais", "Não grava vídeos"],
-          languages: ["Português", "Inglês", "Espanhol"],
-          paymentMethods: ["Dinheiro", "Pix", "Cartão"],
-          workingHours: "24h",
-          location: "Hotel/Motel",
-          images: [
-            "/placeholder.svg?height=600&width=400",
-            "/placeholder.svg?height=600&width=400",
-            "/placeholder.svg?height=600&width=400",
-            "/placeholder.svg?height=600&width=400",
-          ],
-          whatsapp: "+5511999999999",
-        })
+        setProfile(null)
+        setProfileNotFound(true)
         return
       }
+      setProfileNotFound(false)
       setProfile({
         id: p.id,
         name: p.name,
@@ -106,12 +85,21 @@ export function ProfileDetailsFetched({ profileId }: ProfileDetailsProps) {
       })
     }
     load()
+    const unsubscribe = subscribeToModelProfileChanges(() => {
+      void load()
+    })
     return () => {
       mounted = false
+      unsubscribe()
     }
   }, [profileId])
 
-  const hasContentAccess = currentUser?.plan === "vip" || currentUser?.subscribedModelIds?.includes(profileId) || currentUser?.role === "admin" || currentUser?.role === "modelo"
+  const hasContentAccess = !isPublicPreview && (
+    currentUser?.plan === "vip" ||
+    currentUser?.subscribedModelIds?.includes(profileId) ||
+    currentUser?.role === "admin" ||
+    currentUser?.role === "modelo"
+  )
   const galleryItems = profile ? getGalleryItemsFromModel({
     imageUrl: profile.images?.[0] || "/placeholder.svg?height=600&width=400",
     gallery: profile.images,
@@ -120,7 +108,17 @@ export function ProfileDetailsFetched({ profileId }: ProfileDetailsProps) {
   const currentGalleryItem = galleryItems[currentImageIndex]
   const shouldBlurCurrentImage = Boolean(currentGalleryItem?.isBlurred && !hasContentAccess)
 
+  useEffect(() => {
+    if (currentImageIndex >= galleryItems.length) {
+      setCurrentImageIndex(Math.max(0, galleryItems.length - 1))
+    }
+  }, [currentImageIndex, galleryItems.length])
+
   const handleImageClick = (index: number) => {
+    if (isPublicPreview) {
+      setCurrentImageIndex(index)
+      return
+    }
     if (hasContentAccess) {
       setCurrentImageIndex(index)
       return
@@ -132,8 +130,27 @@ export function ProfileDetailsFetched({ profileId }: ProfileDetailsProps) {
     setShowSubscriptionModal(true)
   }
 
+  if (profileNotFound) {
+    return (
+      <div className="container mx-auto px-4 py-16 text-center">
+        <h1 className="text-2xl font-bold text-white">Perfil não encontrado</h1>
+        <p className="mt-2 text-gray-400">
+          Este perfil foi removido ou não está mais disponível.
+        </p>
+        <Button className="mt-6" onClick={() => router.push("/busca")}>
+          Voltar para a busca
+        </Button>
+      </div>
+    )
+  }
+
   return (
     <div className="container mx-auto px-4 py-8">
+      {isPublicPreview && (
+        <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+          Prévia pública: esta é a visualização de um visitante sem acesso VIP.
+        </div>
+      )}
       <Button variant="ghost" className="mb-6 text-gray-400 hover:text-white" onClick={() => window.history.back()}>
         <ArrowLeft className="h-4 w-4 mr-2" />
         Voltar

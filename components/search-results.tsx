@@ -10,7 +10,7 @@ import Image from "next/image";
 import { ModelDetailsModal, Model } from "@/components/model-details-modal";
 import { SearchFiltersState } from "@/app/busca/page";
 import { PhysicalCharacteristics } from "@/lib/physical-characteristics";
-import { getAllLocalProfiles } from "@/lib/local-auth";
+import { getAllLocalProfiles, subscribeToModelProfileChanges, type ModelProfile } from "@/lib/local-auth";
 import { StoryViewer } from "@/components/story-viewer";
 import { cn, getPublicProfileSlug } from "@/lib/utils";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -19,6 +19,10 @@ import { Slider } from "@/components/ui/slider"
 import { SearchFilters } from "@/components/search-filters"
 import { locations } from "@/lib/brazil-locations";
 import { mapLocalProfileToModel } from "@/lib/model-mappers";
+import {
+  fetchPublishedProfiles,
+  isRemoteDataEnabled,
+} from "@/lib/profile-client";
 
 interface SearchResultsProps {
   filters: SearchFiltersState;
@@ -39,9 +43,38 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
   const modelIdFromUrl = searchParams.get("modelId");
   const profileSlugFromUrl = searchParams.get("perfil");
 
-  const loadProfiles = useCallback(() => {
+  const loadProfiles = useCallback(async () => {
     const localProfiles = getAllLocalProfiles();
-    const mapped: Model[] = localProfiles.map((p) => {
+    const profileSources: Array<ModelProfile & { email: string }> = [
+      ...localProfiles,
+    ];
+
+    if (isRemoteDataEnabled()) {
+      try {
+        const publishedProfiles = await fetchPublishedProfiles();
+        publishedProfiles.forEach((published) => {
+          profileSources.push({
+            ...published,
+            email: published.id,
+            phone: "",
+            photos: published.photoItems.map((photo) => photo.url),
+            coverImage: published.photoItems[0]?.url,
+          });
+        });
+      } catch (error) {
+        console.error("Não foi possível carregar os perfis publicados:", error);
+      }
+    }
+
+    const uniqueProfiles = Array.from(
+      new Map(
+        profileSources.map((candidate) => [
+          candidate.publicId || candidate.email,
+          candidate,
+        ])
+      ).values()
+    );
+    const mapped: Model[] = uniqueProfiles.map((p) => {
       const baseModel = mapLocalProfileToModel(p);
 
       // Normalize characteristics to match filter options
@@ -105,6 +138,9 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
         }
 
         if (profileSlugFromUrl) {
+          if (p.publicId === profileSlugFromUrl || p.id === profileSlugFromUrl) {
+            return true;
+          }
           return getPublicProfileSlug(p.name, p.id) === profileSlugFromUrl;
         }
 
@@ -123,16 +159,7 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
 
   useEffect(() => {
     loadProfiles();
-
-    const handleProfilesChanged = () => loadProfiles();
-
-    window.addEventListener("storage", handleProfilesChanged);
-    window.addEventListener("spicy-profile-change", handleProfilesChanged as EventListener);
-
-    return () => {
-      window.removeEventListener("storage", handleProfilesChanged);
-      window.removeEventListener("spicy-profile-change", handleProfilesChanged as EventListener);
-    };
+    return subscribeToModelProfileChanges(loadProfiles);
   }, [loadProfiles]);
 
   useEffect(() => {
@@ -169,7 +196,7 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
       }
 
       // Filter by Rating
-      if (filters.minRating > 0 && profile.rating < filters.minRating) {
+      if (filters.minRating > 0 && (profile.rating ?? 0) < filters.minRating) {
         return false;
       }
 
@@ -302,7 +329,10 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
     setIsModalOpen(true);
     const params = new URLSearchParams(searchParams.toString());
     params.delete("modelId");
-    params.set("perfil", getPublicProfileSlug(model.name, model.id));
+    params.set(
+      "perfil",
+      getPublicProfileSlug(model.name, model.publicId || model.id)
+    );
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 

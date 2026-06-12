@@ -2,8 +2,14 @@ node_modules
 .next
 .env
 .env.*
+!.env.example
 .vercel
 dist
 build
 .DS_Store
 *.log
+.kilocode/
+.kilocodemodes
+.playwright-cli/
+.vscode/
+*.tsbuildinfo

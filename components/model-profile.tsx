@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Star, MapPin, Phone, MessageCircle, Gift, ShieldCheck, X, Upload, Trash2, GripVertical, Lock, LockOpen, PlayCircle, ImageIcon, LoaderCircle, CheckCircle2, Eye } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { estimateModelProfileStorageSize, localGetUser, getModelProfile, saveModelProfile, getProfilePhotoItems, type ModelPhoto, type ModelProfile as ModelProfileType, type Story } from "@/lib/local-auth";
+import { createPublicProfileId, estimateModelProfileStorageSize, localGetUser, getModelProfile, getUsers, saveModelProfile, getProfilePhotoItems, subscribeToModelProfileChanges, type ModelPhoto, type ModelProfile as ModelProfileType, type Story } from "@/lib/local-auth";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { compressImage } from "@/lib/image-utils";
@@ -18,6 +18,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  isRemoteMediaEnabled,
+  syncRemoteProfilePhotos,
+} from "@/lib/media-client";
+import {
+  isRemoteDataEnabled,
+  saveRemoteProfile,
+} from "@/lib/profile-client";
 
 const SERVICES_LIST = ["Acompanhante", "Massagem", "Jantar", "Eventos", "Viagens", "Fetiches"];
 const MAX_PHOTOS = 12;
@@ -41,7 +49,8 @@ export function ModelProfile({ profileId }: { profileId: string }) {
   const [mainImage, setMainImage] = useState<string>("");
   const [editing, setEditing] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
-  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [canEdit, setCanEdit] = useState(false);
+  const [hasContentAccess, setHasContentAccess] = useState(false);
   const [previewMedia, setPreviewMedia] = useState<{ url: string, type: 'image' | 'video' } | null>(null);
   
   const [isDragging, setIsDragging] = useState(false);
@@ -49,43 +58,60 @@ export function ModelProfile({ profileId }: { profileId: string }) {
   const [draggedStoryId, setDraggedStoryId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const storyInputRef = useRef<HTMLInputElement>(null);
+  const saveInFlightRef = useRef(false);
+  const saveResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const user = localGetUser();
     const email = decodeURIComponent(profileId);
-    const p = getModelProfile(email);
-    
-    if (p) {
-      setModel(p);
-      setMainImage(p.photoItems?.[0]?.url || p.coverImage || p.photos?.[0] || "");
-      
-      // Authorization check
-      if (user && (user.role === "admin" || user.email === email)) {
-        setIsAuthorized(true);
+    const loadProfile = () => {
+      const user = localGetUser();
+      const p = getModelProfile(email);
+
+      if (p) {
+        setModel(p);
+        setMainImage(p.photoItems?.[0]?.url || p.coverImage || p.photos?.[0] || "");
       }
-    }
+
+      const userCanEdit = Boolean(
+        user && (user.role === "admin" || user.email.toLowerCase() === email.toLowerCase())
+      );
+      setCanEdit(userCanEdit);
+      setHasContentAccess(Boolean(
+        userCanEdit ||
+        user?.role === "modelo" ||
+        user?.plan === "vip" ||
+        user?.subscribedModelIds?.includes(email)
+      ));
+    };
+
+    loadProfile();
+    return subscribeToModelProfileChanges(loadProfile);
   }, [profileId]);
 
-  if (!model) {
-    return <div className="min-h-screen bg-dark-950 flex items-center justify-center text-white">Modelo não encontrada.</div>;
-  }
+  useEffect(() => {
+    return () => {
+      if (saveResetTimerRef.current) {
+        clearTimeout(saveResetTimerRef.current);
+      }
+    };
+  }, []);
 
   const currentPhotoItems = getProfilePhotoItems(model);
-  const profileToSave = useMemo<ModelProfileType>(
-    () => ({
-      ...model,
-      photoItems: currentPhotoItems,
-      photos: currentPhotoItems.map((photo) => photo.url),
-      coverImage: currentPhotoItems[0]?.url,
-    }),
+  const profileToSave = useMemo<ModelProfileType | null>(
+    () => model ? ({
+        ...model,
+        photoItems: currentPhotoItems,
+        photos: currentPhotoItems.map((photo) => photo.url),
+        coverImage: currentPhotoItems[0]?.url,
+      }) : null,
     [currentPhotoItems, model]
   );
   const estimatedStorageBytes = useMemo(
-    () => (model.email ? estimateModelProfileStorageSize(model.email, profileToSave) : 0),
-    [model.email, profileToSave]
+    () => (model?.email && profileToSave ? estimateModelProfileStorageSize(model.email, profileToSave) : 0),
+    [model?.email, profileToSave]
   );
   const isStorageNearLimit = estimatedStorageBytes >= PROFILE_STORAGE_SOFT_LIMIT_BYTES;
-  const isSaving = saveStatus !== "idle";
+  const isSaving = saveStatus === "compressing" || saveStatus === "saving";
   const saveButtonLabel =
     saveStatus === "compressing"
       ? "Comprimindo e preparando..."
@@ -94,38 +120,118 @@ export function ModelProfile({ profileId }: { profileId: string }) {
         : saveStatus === "success"
           ? "Salvo com sucesso"
           : "Salvar Alterações";
+  const saveButtonClassName = cn(
+    "w-full transition-all duration-300",
+    (saveStatus === "compressing" || saveStatus === "saving") &&
+      "animate-pulse scale-[0.98] bg-amber-600 text-white hover:bg-amber-600 shadow-lg shadow-amber-950/30",
+    saveStatus === "success" && "bg-emerald-600 text-white hover:bg-emerald-600"
+  );
+
+  if (!model || !profileToSave) {
+    return <div className="min-h-screen bg-dark-950 flex items-center justify-center text-white">Modelo não encontrada.</div>;
+  }
 
   const handleSave = async () => {
+    if (saveInFlightRef.current) return;
+
     if (!model.email) {
       toast({ title: "Erro ao salvar", description: "Perfil sem identificador para persistencia.", variant: "destructive" });
       return;
     }
 
-    if (isStorageNearLimit) {
-      toast({
-        title: "Perfil grande demais para o modo local",
-        description: `O perfil esta usando cerca de ${formatFileSize(estimatedStorageBytes)}. Remova algumas fotos ou stories antes de salvar.`,
-        variant: "destructive",
-      });
-      return;
+    const currentUser = localGetUser();
+    const targetUser = getUsers().find(
+      (user) => user.email.toLowerCase() === model.email?.toLowerCase()
+    );
+    const remoteProfileId =
+      currentUser?.email.toLowerCase() === model.email.toLowerCase()
+        ? currentUser.id
+        : targetUser?.id;
+    saveInFlightRef.current = true;
+    if (saveResetTimerRef.current) {
+      clearTimeout(saveResetTimerRef.current);
+      saveResetTimerRef.current = null;
     }
-
-    setSaveStatus("compressing");
-    await new Promise(resolve => setTimeout(resolve, 450));
     setSaveStatus("saving");
-    await new Promise(resolve => setTimeout(resolve, 450));
 
-    const success = saveModelProfile(model.email, profileToSave);
+    try {
+      let nextProfile: ModelProfileType = {
+        ...profileToSave,
+        publicId: profileToSave.publicId || createPublicProfileId(),
+        photoItems: currentPhotoItems,
+        photos: currentPhotoItems.map((photo) => photo.url),
+        coverImage: currentPhotoItems[0]?.url,
+      };
+      const success = saveModelProfile(model.email, nextProfile);
 
-    if (success) {
+      if (!success) {
+        throw new Error(
+          isStorageNearLimit
+            ? `O perfil ocupa cerca de ${formatFileSize(estimatedStorageBytes)} e excedeu o espaço local. Remova algumas mídias ou ative o armazenamento remoto.`
+            : "O navegador não conseguiu persistir o perfil. Tente novamente."
+        );
+      }
+
+      if (isRemoteDataEnabled()) {
+        if (!remoteProfileId) {
+          throw new Error(
+            "O perfil não possui vínculo com um usuário do Supabase."
+          );
+        }
+
+        const published = await saveRemoteProfile(remoteProfileId, nextProfile);
+        nextProfile = {
+          ...nextProfile,
+          publicId: published.publicId,
+        };
+
+        if (isRemoteMediaEnabled()) {
+          const syncedPhotoItems = await syncRemoteProfilePhotos(
+            remoteProfileId,
+            currentPhotoItems
+          );
+          nextProfile = {
+            ...nextProfile,
+            photoItems: syncedPhotoItems,
+            photos: syncedPhotoItems.map((photo) => photo.url),
+            coverImage: syncedPhotoItems[0]?.url,
+          };
+        }
+
+        if (!saveModelProfile(model.email, nextProfile)) {
+          throw new Error(
+            "O perfil foi publicado, mas a cópia local não pôde ser atualizada."
+          );
+        }
+      }
+
+      setModel(nextProfile);
+      setMainImage(nextProfile.coverImage || "");
+      await new Promise(resolve => setTimeout(resolve, 350));
       setSaveStatus("success");
-      toast({ title: "Perfil atualizado!", description: "As alterações foram salvas globalmente." });
-      window.setTimeout(() => setSaveStatus("idle"), 1600);
-    } else {
+      saveInFlightRef.current = false;
+      toast({
+        title: "Perfil atualizado!",
+        description: isRemoteDataEnabled()
+          ? isRemoteMediaEnabled()
+            ? "Perfil e fotos publicados para todos os usuários autorizados."
+            : "Perfil publicado no Supabase. As fotos continuam somente neste navegador."
+          : "Perfil salvo somente neste navegador. A publicação remota está desativada.",
+      });
+      saveResetTimerRef.current = setTimeout(() => {
+        setSaveStatus("idle");
+        saveResetTimerRef.current = null;
+      }, 1400);
+
+    } catch (error) {
+      saveInFlightRef.current = false;
       setSaveStatus("idle");
       toast({
         title: "Erro ao salvar",
-        description: "O navegador nao conseguiu persistir o perfil no localStorage. Remova algumas fotos ou stories e tente novamente.",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível salvar as alterações do perfil.",
         variant: "destructive",
       });
     }
@@ -314,7 +420,7 @@ export function ModelProfile({ profileId }: { profileId: string }) {
               Voltar para a busca
             </Button>
           </Link>
-          {isAuthorized && !editing && (
+          {canEdit && !editing && (
             <Button variant="secondary" onClick={() => setEditing(true)}>
               Editar Perfil
             </Button>
@@ -334,11 +440,11 @@ export function ModelProfile({ profileId }: { profileId: string }) {
                       fill 
                       className={cn(
                         "object-cover",
-                        currentPhotoItems.find(p => p.url === mainImage)?.isBlurred && !isAuthorized && "blur-2xl"
+                        currentPhotoItems.find(p => p.url === mainImage)?.isBlurred && !hasContentAccess && "blur-2xl"
                       )} 
                     />
                   )}
-                  {currentPhotoItems.find(p => p.url === mainImage)?.isBlurred && !isAuthorized && (
+                  {currentPhotoItems.find(p => p.url === mainImage)?.isBlurred && !hasContentAccess && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 z-10">
                       <Lock className="h-12 w-12 text-white mb-4" />
                       <p className="text-white font-bold text-lg">Conteúdo Exclusivo</p>
@@ -392,7 +498,7 @@ export function ModelProfile({ profileId }: { profileId: string }) {
                       src={photo.url} 
                       alt={`Foto ${index + 1}`} 
                       fill 
-                      className={cn("object-cover", photo.isBlurred && !isAuthorized && "blur-md")} 
+                      className={cn("object-cover", photo.isBlurred && !hasContentAccess && "blur-md")}
                     />
                     
                     {editing && (
@@ -419,7 +525,7 @@ export function ModelProfile({ profileId }: { profileId: string }) {
                         <GripVertical className="h-4 w-4 text-white cursor-grab active:cursor-grabbing" />
                       </div>
                     )}
-                    {photo.isBlurred && !editing && (
+                    {photo.isBlurred && !editing && !hasContentAccess && (
                       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                         <Lock className="h-4 w-4 text-white/70" />
                       </div>
@@ -462,9 +568,9 @@ export function ModelProfile({ profileId }: { profileId: string }) {
                       className="aspect-[9/16] rounded-lg overflow-hidden border border-gray-700 relative group bg-black cursor-zoom-in"
                     >
                       {story.mediaType === 'image' ? (
-                        <Image src={story.mediaUrl} alt="Story" fill className={cn("object-cover", story.isBlurred && !isAuthorized && "blur-sm")} />
+                        <Image src={story.mediaUrl} alt="Story" fill className={cn("object-cover", story.isBlurred && !hasContentAccess && "blur-sm")} />
                       ) : (
-                        <video src={story.mediaUrl} className={cn("w-full h-full object-cover", story.isBlurred && !isAuthorized && "blur-sm")} />
+                        <video src={story.mediaUrl} className={cn("w-full h-full object-cover", story.isBlurred && !hasContentAccess && "blur-sm")} />
                       )}
                       
                       {/* Story Overlay */}
@@ -489,7 +595,7 @@ export function ModelProfile({ profileId }: { profileId: string }) {
                         )}
                       </div>
                       
-                      {story.isBlurred && !isAuthorized && (
+                      {story.isBlurred && !hasContentAccess && (
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                           <Lock className="h-5 w-5 text-white/70" />
                         </div>
@@ -568,7 +674,7 @@ export function ModelProfile({ profileId }: { profileId: string }) {
                   </>
                 ) : (
                   <div className="flex flex-col gap-2">
-                    <Button className="w-full" onClick={handleSave} disabled={isSaving}>
+                    <Button type="button" className={saveButtonClassName} onClick={() => void handleSave()} disabled={isSaving}>
                       {(saveStatus === "compressing" || saveStatus === "saving") && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
                       {saveStatus === "success" && <CheckCircle2 className="mr-2 h-4 w-4" />}
                       {saveButtonLabel}

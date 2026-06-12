@@ -556,5 +556,6 @@ export default function ChatLayout({ mode = "full" }: { mode?: "full" | "floatin
       
       
     </div>
+    </div>
   );
 }

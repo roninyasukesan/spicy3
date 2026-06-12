@@ -20,6 +20,7 @@ import { toast } from "@/components/ui/use-toast";
 // Define the interface for the model prop
 export interface Model {
   id: string;
+  publicId?: string;
   name: string;
   city: string;
   price: string;

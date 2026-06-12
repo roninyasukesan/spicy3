@@ -4,8 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { compressImage } from "@/lib/image-utils";
 import { Header } from "@/components/header";
-import { cn, getProfileSearchPath, type UserRole } from "@/lib/utils";
-import { estimateModelProfileStorageSize, localGetUser, getAllLocalProfiles, getModelProfile, saveModelProfile, getProfilePhotoItems, type ModelPhoto, type ModelProfile, type Story } from "@/lib/local-auth";
+import { cn, getProfileSearchPath } from "@/lib/utils";
+import { createPublicProfileId, estimateModelProfileStorageSize, localGetUser, getAllLocalProfiles, getModelProfile, getUsers, saveModelProfile, getProfilePhotoItems, type ModelPhoto, type ModelProfile, type Story } from "@/lib/local-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,14 @@ import { PHYSICAL_CHARACTERISTICS, type PhysicalCharacteristics } from "@/lib/ph
 import { AudioPlayerWave } from "@/components/ui/audio-player-wave";
 import { Dialog, DialogContent, DialogTitle, DialogHeader } from "@/components/ui/dialog";
 import Image from "next/image";
+import {
+  isRemoteMediaEnabled,
+  syncRemoteProfilePhotos,
+} from "@/lib/media-client";
+import {
+  isRemoteDataEnabled,
+  saveRemoteProfile,
+} from "@/lib/profile-client";
 
 const SERVICES_LIST = ["Acompanhante", "Massagem", "Jantar", "Eventos", "Viagens", "Fetiches"];
 const MAX_PHOTOS = 12;
@@ -46,6 +54,7 @@ export default function AdminEditModeloPage() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [editingEmail, setEditingEmail] = useState("");
+  const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const [draggedPhotoId, setDraggedPhotoId] = useState<string | null>(null);
@@ -54,6 +63,8 @@ export default function AdminEditModeloPage() {
   const [previewMedia, setPreviewMedia] = useState<{ url: string, type: 'image' | 'video' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const storyInputRef = useRef<HTMLInputElement>(null);
+  const saveInFlightRef = useRef(false);
+  const saveResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   const [profile, setProfile] = useState<ModelProfile>({
     artisticName: "",
@@ -93,6 +104,10 @@ export default function AdminEditModeloPage() {
     }
 
     setEditingEmail(requestedEmail);
+    const targetUser = getUsers().find(
+      (candidate) => candidate.email.toLowerCase() === requestedEmail.toLowerCase()
+    );
+    setEditingProfileId(targetUser?.id || null);
 
     const savedProfile =
       getModelProfile(requestedEmail) ||
@@ -110,6 +125,14 @@ export default function AdminEditModeloPage() {
     setLoading(false);
   }, [router, searchParams]);
 
+  useEffect(() => {
+    return () => {
+      if (saveResetTimerRef.current) {
+        clearTimeout(saveResetTimerRef.current);
+      }
+    };
+  }, []);
+
   const currentPhotoItems = getProfilePhotoItems(profile);
   const profileToSave = useMemo<ModelProfile>(
     () => ({
@@ -125,7 +148,7 @@ export default function AdminEditModeloPage() {
     [editingEmail, profileToSave]
   );
   const isStorageNearLimit = estimatedStorageBytes >= PROFILE_STORAGE_SOFT_LIMIT_BYTES;
-  const isSaving = saveStatus !== "idle";
+  const isSaving = saveStatus === "compressing" || saveStatus === "saving";
   const saveButtonLabel =
     saveStatus === "compressing"
       ? "Comprimindo e preparando..."
@@ -134,6 +157,12 @@ export default function AdminEditModeloPage() {
         : saveStatus === "success"
           ? "Salvo com sucesso"
         : "Salvar Alterações";
+  const saveButtonClassName = cn(
+    "min-w-48 bg-primary text-white transition-all duration-300 hover:bg-primary/90",
+    (saveStatus === "compressing" || saveStatus === "saving") &&
+      "animate-pulse scale-[0.98] bg-amber-600 hover:bg-amber-600 shadow-lg shadow-amber-950/30",
+    saveStatus === "success" && "bg-emerald-600 hover:bg-emerald-600"
+  );
 
   const updatePhotoItems = (photoItems: ModelPhoto[]) => {
     setProfile((prev) => ({
@@ -144,40 +173,122 @@ export default function AdminEditModeloPage() {
     }));
   };
 
-  const handleSaveProfile = async () => {
-    if (editingEmail) {
-      if (isStorageNearLimit) {
-        toast({
-          title: "Perfil grande demais para o modo local",
-          description: `O perfil esta usando cerca de ${formatFileSize(estimatedStorageBytes)}. Remova algumas fotos, stories ou audio antes de salvar.`,
-          variant: "destructive"
-        });
-        return;
-      }
+  const handleSaveProfile = async (): Promise<boolean> => {
+    if (saveInFlightRef.current) return false;
 
-      setSaveStatus("compressing");
-      await new Promise(resolve => setTimeout(resolve, 450));
-      setSaveStatus("saving");
-      await new Promise(resolve => setTimeout(resolve, 450));
-
-      const success = saveModelProfile(editingEmail, profileToSave);
-
-      if (success) {
-        setSaveStatus("success");
-        toast({
-          title: "Alterações salvas!",
-          description: `As alterações de ${profile.artisticName || editingName} foram salvas. Clique em "Visualizar Perfil" para conferir a versão atualizada.`,
-        });
-        window.setTimeout(() => setSaveStatus("idle"), 1600);
-      } else {
-        setSaveStatus("idle");
-        toast({
-          title: "Erro ao salvar",
-          description: "O navegador nao conseguiu persistir o perfil no localStorage. Remova algumas fotos, stories ou audio e tente novamente.",
-          variant: "destructive"
-        });
-      }
+    const targetEmail = editingEmail || searchParams.get("email")?.trim() || "";
+    if (!targetEmail) {
+      toast({
+        title: "Perfil sem identificador",
+        description: "Volte à gestão de modelos e abra o perfil novamente.",
+        variant: "destructive"
+      });
+      return false;
     }
+
+    saveInFlightRef.current = true;
+    if (saveResetTimerRef.current) {
+      clearTimeout(saveResetTimerRef.current);
+      saveResetTimerRef.current = null;
+    }
+    setSaveStatus("saving");
+
+    try {
+      let nextProfile: ModelProfile = {
+        ...profile,
+        publicId: profile.publicId || createPublicProfileId(),
+        photoItems: currentPhotoItems,
+        photos: currentPhotoItems.map((photo) => photo.url),
+        coverImage: currentPhotoItems[0]?.url,
+      };
+      const success = saveModelProfile(targetEmail, nextProfile);
+
+      if (!success) {
+        throw new Error(
+          isStorageNearLimit
+            ? `O perfil ocupa cerca de ${formatFileSize(estimatedStorageBytes)} e excedeu o espaço local. Remova algumas mídias ou ative o armazenamento remoto.`
+            : "O navegador não conseguiu persistir o perfil. Tente novamente."
+        );
+      }
+
+      if (isRemoteDataEnabled()) {
+        if (!editingProfileId) {
+          throw new Error(
+            "Esta modelo não possui vínculo com um perfil do Supabase."
+          );
+        }
+
+        const published = await saveRemoteProfile(editingProfileId, nextProfile);
+        nextProfile = {
+          ...nextProfile,
+          publicId: published.publicId,
+        };
+
+        if (isRemoteMediaEnabled()) {
+          const syncedPhotoItems = await syncRemoteProfilePhotos(
+            editingProfileId,
+            currentPhotoItems
+          );
+          nextProfile = {
+            ...nextProfile,
+            photoItems: syncedPhotoItems,
+            photos: syncedPhotoItems.map((photo) => photo.url),
+            coverImage: syncedPhotoItems[0]?.url,
+          };
+        }
+
+        if (!saveModelProfile(targetEmail, nextProfile)) {
+          throw new Error(
+            "O perfil foi publicado, mas a cópia local não pôde ser atualizada."
+          );
+        }
+      }
+
+      setProfile(nextProfile);
+      await new Promise(resolve => setTimeout(resolve, 350));
+      setSaveStatus("success");
+      saveInFlightRef.current = false;
+      toast({
+        title: "Alterações salvas!",
+        description: isRemoteDataEnabled()
+          ? isRemoteMediaEnabled()
+            ? `O perfil e as fotos de ${profile.artisticName || editingName} foram publicados.`
+            : `O perfil foi publicado, mas as fotos continuam somente neste navegador.`
+          : "Alterações salvas somente neste navegador. A publicação remota está desativada.",
+      });
+      saveResetTimerRef.current = setTimeout(() => {
+        setSaveStatus("idle");
+        saveResetTimerRef.current = null;
+      }, 1400);
+
+      return true;
+    } catch (error) {
+      saveInFlightRef.current = false;
+      setSaveStatus("idle");
+      toast({
+        title: "Erro ao salvar",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível salvar as alterações do perfil.",
+        variant: "destructive"
+      });
+      return false;
+    }
+  };
+
+  const handleViewProfile = async () => {
+    const saved = await handleSaveProfile();
+    if (!saved) return;
+
+    const targetEmail = editingEmail || searchParams.get("email")?.trim() || "";
+    const savedProfile = getModelProfile(targetEmail);
+    router.push(
+      getProfileSearchPath(
+        savedProfile?.artisticName || profile.artisticName || editingName || targetEmail,
+        savedProfile?.publicId || profile.publicId || targetEmail
+      )
+    );
   };
 
   const toggleService = (service: string) => {
@@ -488,8 +599,15 @@ export default function AdminEditModeloPage() {
             <p className="text-gray-400">Editando perfil: <span className="text-primary font-medium">{editingName}</span></p>
           </div>
           <div className="flex gap-3">
-             <Button variant="outline" className="border-gray-700 text-gray-300" onClick={() => router.push(getProfileSearchPath(profile.artisticName || editingName || editingEmail, editingEmail))}>Visualizar Perfil</Button>
-             <Button onClick={handleSaveProfile} disabled={isSaving} className="bg-primary hover:bg-primary/90 text-white">
+             <Button
+               variant="outline"
+               className="border-gray-700 text-gray-300"
+               onClick={handleViewProfile}
+               disabled={isSaving}
+             >
+               Visualizar Perfil
+             </Button>
+             <Button type="button" onClick={() => void handleSaveProfile()} disabled={isSaving} className={saveButtonClassName}>
                {(saveStatus === "compressing" || saveStatus === "saving") && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
                {saveStatus === "success" && <CheckCircle2 className="mr-2 h-4 w-4" />}
                {saveButtonLabel}
@@ -633,10 +751,10 @@ export default function AdminEditModeloPage() {
                          {index === 0 && <Badge className="bg-primary text-white text-[10px]">Capa</Badge>}
                       </div>
                       <div className="absolute top-2 right-2 flex flex-col gap-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
-                         <Button size="icon" variant="destructive" className="h-7 w-7 rounded-full" onClick={() => removePhoto(index)}><Trash2 className="h-3.5 w-3.5" /></Button>
-                         <Button size="icon" variant="secondary" className={cn("h-7 w-7 rounded-full", photo.isBlurred && "bg-amber-500")} onClick={() => togglePhotoBlur(index)}>{photo.isBlurred ? <Lock className="h-3.5 w-3.5" /> : <LockOpen className="h-3.5 w-3.5" />}</Button>
+                         <Button size="icon" variant="destructive" className="h-7 w-7 rounded-full" onClick={(event) => { event.stopPropagation(); removePhoto(index); }}><Trash2 className="h-3.5 w-3.5" /></Button>
+                         <Button size="icon" variant="secondary" className={cn("h-7 w-7 rounded-full", photo.isBlurred && "bg-amber-500")} onClick={(event) => { event.stopPropagation(); togglePhotoBlur(index); }}>{photo.isBlurred ? <Lock className="h-3.5 w-3.5" /> : <LockOpen className="h-3.5 w-3.5" />}</Button>
                       </div>
-                      <Button size="sm" variant="secondary" className="absolute bottom-2 left-2 right-2 bg-black/60 text-white opacity-0 group-hover:opacity-100" onClick={() => setFeaturedPhoto(index)}>Usar como Capa</Button>
+                       <Button size="sm" variant="secondary" className="absolute bottom-2 left-2 right-2 bg-black/60 text-white opacity-0 group-hover:opacity-100" onClick={(event) => { event.stopPropagation(); setFeaturedPhoto(index); }}>Usar como Capa</Button>
                     </div>
                   ))}
                 </div>
@@ -668,8 +786,8 @@ export default function AdminEditModeloPage() {
                           <Eye className="h-8 w-8 text-white/70" />
                         </div>
                         <div className="absolute top-1 right-1 flex flex-col gap-1 z-20 opacity-0 group-hover:opacity-100">
-                          <Button size="icon" variant="destructive" className="h-6 w-6 rounded-full" onClick={() => removeStory(story.id)}><X className="h-3 w-3" /></Button>
-                          <Button size="icon" variant="secondary" className={cn("h-6 w-6 rounded-full", story.isBlurred && "bg-amber-500")} onClick={() => toggleStoryBlur(story.id)}>{story.isBlurred ? <Lock className="h-3 w-3" /> : <LockOpen className="h-3 w-3" />}</Button>
+                          <Button size="icon" variant="destructive" className="h-6 w-6 rounded-full" onClick={(event) => { event.stopPropagation(); removeStory(story.id); }}><X className="h-3 w-3" /></Button>
+                          <Button size="icon" variant="secondary" className={cn("h-6 w-6 rounded-full", story.isBlurred && "bg-amber-500")} onClick={(event) => { event.stopPropagation(); toggleStoryBlur(story.id); }}>{story.isBlurred ? <Lock className="h-3 w-3" /> : <LockOpen className="h-3 w-3" />}</Button>
                         </div>
                         <div className="absolute bottom-1 right-1 bg-black/50 text-white text-[9px] px-1 rounded">{story.mediaType === 'video' ? "VÍDEO" : "FOTO"}</div>
                      </div>
@@ -680,10 +798,11 @@ export default function AdminEditModeloPage() {
 
             <div className="flex justify-end">
               <Button
-                onClick={handleSaveProfile}
+                type="button"
+                onClick={() => void handleSaveProfile()}
                 size="lg"
                 disabled={isSaving}
-                className="bg-primary hover:bg-primary/90 text-white"
+                className={saveButtonClassName}
               >
                 {(saveStatus === "compressing" || saveStatus === "saving") && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
                 {saveStatus === "success" && <CheckCircle2 className="mr-2 h-4 w-4" />}

@@ -3,12 +3,12 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Play } from "lucide-react"
+import { Lock, Plus } from "lucide-react"
 import Image from "next/image"
-import { getAllLocalProfiles, localGetUser, type ModelProfile } from "@/lib/local-auth"
+import { getAllLocalProfiles, localGetUser, subscribeToModelProfileChanges } from "@/lib/local-auth"
 import { useRouter } from "next/navigation"
 import { StoryViewer } from "./story-viewer"
-import { mapLocalProfileToModel } from "@/lib/model-mappers"
+import { getGalleryItemsFromModel, mapLocalProfileToModel } from "@/lib/model-mappers"
 import { Model } from "./model-details-modal"
 
 export function StoriesSection() {
@@ -18,11 +18,16 @@ export function StoriesSection() {
   const user = localGetUser()
 
   useEffect(() => {
-    const all = getAllLocalProfiles()
-    const withStories = all
-      .map(p => mapLocalProfileToModel(p))
-      .filter(p => p.stories && p.stories.length > 0)
-    setProfilesWithStories(withStories)
+    const loadProfiles = () => {
+      const all = getAllLocalProfiles()
+      const withStories = all
+        .map(p => mapLocalProfileToModel(p))
+        .filter(p => p.stories && p.stories.length > 0)
+      setProfilesWithStories(withStories)
+    }
+
+    loadProfiles()
+    return subscribeToModelProfileChanges(loadProfiles)
   }, [])
 
   return (
@@ -49,7 +54,16 @@ export function StoriesSection() {
           )}
 
           {/* Stories */}
-          {profilesWithStories.map((profile) => (
+          {profilesWithStories.map((profile) => {
+            const coverPhoto = getGalleryItemsFromModel(profile)[0]
+            const hasContentAccess =
+              user?.plan === "vip" ||
+              user?.role === "admin" ||
+              user?.role === "modelo" ||
+              user?.subscribedModelIds?.includes(profile.id)
+            const shouldBlurCover = Boolean(coverPhoto?.isBlurred && !hasContentAccess)
+
+            return (
             <div key={profile.id} className="flex-shrink-0">
               <Card
                 className="bg-dark-800/50 border-gray-700 cursor-pointer hover:bg-dark-700/50 transition-colors"
@@ -62,12 +76,17 @@ export function StoriesSection() {
                     <div className="w-full h-full bg-dark-800 rounded-full p-0.5 relative">
                       <div className="relative w-full h-full rounded-full overflow-hidden">
                         <Image
-                          src={profile.imageUrl}
+                          src={coverPhoto?.url || profile.imageUrl}
                           alt={profile.name}
                           fill
-                          className="object-cover"
+                          className={shouldBlurCover ? "object-cover blur-md" : "object-cover"}
                           sizes="64px"
                         />
+                        {shouldBlurCover && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                            <Lock className="h-4 w-4 text-white/80" />
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -83,7 +102,7 @@ export function StoriesSection() {
                 </CardContent>
               </Card>
             </div>
-          ))}
+          )})}
           
           {profilesWithStories.length === 0 && !user?.role === "modelo" && (
              <div className="text-gray-500 text-sm py-4 italic">Nenhum story recente disponível.</div>

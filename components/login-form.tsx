@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { localSignIn } from "@/lib/local-auth";
+import { isRemoteDataEnabled } from "@/lib/profile-client";
 
 type LoginFormProps = {
   onSuccess?: () => void
@@ -35,13 +36,15 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
       let loggedUser: any = null;
 
       // 1. Try Supabase Auth first
-      if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      if (isRemoteDataEnabled()) {
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
 
-        if (!error && data.user) {
+        if (error) throw error;
+
+        if (data.user) {
           // Fetch profile for role
           const { data: profile } = await supabase
             .from('profiles')
@@ -49,10 +52,16 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
             .eq('id', data.user.id)
             .single();
           
+          const databaseRole = profile?.role || "client";
           loggedUser = {
             id: data.user.id,
             email: data.user.email!,
-            role: profile?.role || 'client',
+            role:
+              databaseRole === "model"
+                ? "modelo"
+                : databaseRole === "client"
+                  ? "cliente"
+                  : databaseRole,
             name: profile?.display_name || data.user.email?.split('@')[0] || 'Usuário',
           };
 
@@ -68,9 +77,13 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
       }
 
       // 2. Fallback to Local Auth if not logged in via Supabase
-      if (!loggedUser) {
+      if (!loggedUser && !isRemoteDataEnabled()) {
         const { user } = await localSignIn(email, password);
         loggedUser = user;
+      }
+
+      if (!loggedUser) {
+        throw new Error("O Supabase não retornou uma sessão válida.");
       }
 
       const role = loggedUser.role;

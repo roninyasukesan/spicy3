@@ -4,7 +4,7 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProfileCard } from "@/components/profile-card";
 import { useEffect, useState } from "react";
-import { getAllLocalProfiles } from "@/lib/local-auth";
+import { getAllLocalProfiles, subscribeToModelProfileChanges } from "@/lib/local-auth";
 import { Model } from "@/components/model-details-modal";
 import { ModelDetailsModal } from "@/components/model-details-modal";
 import { mapLocalProfileToModel } from "@/lib/model-mappers";
@@ -15,8 +15,9 @@ export function ProfileShowcase() {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
-    const localProfiles = getAllLocalProfiles();
-    const mappedModels: Model[] = localProfiles.map((profile, index) => {
+    const loadProfiles = () => {
+      const localProfiles = getAllLocalProfiles();
+      const mappedModels: Model[] = localProfiles.map((profile) => {
         return {
           ...mapLocalProfileToModel(profile),
           rating: 4.9,
@@ -34,8 +35,12 @@ export function ProfileShowcase() {
              piercings: profile.characteristics.piercings
           }
         };
-    });
-    setProfiles(mappedModels);
+      });
+      setProfiles(mappedModels);
+    };
+
+    loadProfiles();
+    return subscribeToModelProfileChanges(loadProfiles);
   }, []);
 
   const handleDetailsClick = (model: Model) => {

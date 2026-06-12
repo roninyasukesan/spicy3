@@ -3,6 +3,7 @@ import { mockProfiles } from "./mock-profiles"
 
 export type LocalUser = {
   id?: string
+  publicProfileId?: string
   email: string
   role: UserRole
   name: string
@@ -19,6 +20,8 @@ export type DemoUser = LocalUserWithPassword
 const STORAGE_KEY = "spicy-auth-user"
 const HOME_CONTENT_KEY = "spicy-home-content"
 const USERS_STORAGE_KEY = "spicy-users-list"
+const DELETED_USERS_STORAGE_KEY = "spicy-deleted-users"
+const DELETED_MODEL_PROFILES_STORAGE_KEY = "spicy-deleted-model-profiles"
 
 function safeSetItem(key: string, value: string): boolean {
   if (typeof window === "undefined") return false
@@ -325,22 +328,68 @@ function buildDefaultDemoUsers(): DemoUser[] {
 
 export const demoUsers: DemoUser[] = buildDefaultDemoUsers()
 
+function normalizeUserEmail(email: string) {
+  return resolveMockEmail(email.trim().toLowerCase())
+}
+
+function getDeletedUserEmails() {
+  if (typeof window === "undefined") return new Set<string>()
+
+  try {
+    const raw = window.localStorage.getItem(DELETED_USERS_STORAGE_KEY)
+    const emails = raw ? (JSON.parse(raw) as string[]) : []
+    return new Set(emails.map(normalizeUserEmail))
+  } catch {
+    return new Set<string>()
+  }
+}
+
+function notifyUsersChanged() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("spicy-users-change"))
+  }
+}
+
+function getDeletedModelProfileEmails() {
+  if (typeof window === "undefined") return new Set<string>()
+
+  try {
+    const raw = window.localStorage.getItem(DELETED_MODEL_PROFILES_STORAGE_KEY)
+    const emails = raw ? (JSON.parse(raw) as string[]) : []
+    return new Set(emails.map(normalizeUserEmail))
+  } catch {
+    return new Set<string>()
+  }
+}
+
+export function isModelProfileDeleted(email: string) {
+  return getDeletedModelProfileEmails().has(resolveMockEmail(email))
+}
+
 export function getUsers(): DemoUser[] {
   const defaultUsers = buildDefaultDemoUsers()
   if (typeof window === "undefined") return defaultUsers
   const raw = window.localStorage.getItem(USERS_STORAGE_KEY)
-  if (!raw) return defaultUsers
+  const deletedEmails = getDeletedUserEmails()
+  const usersMap = new Map<string, DemoUser>()
+
+  defaultUsers.forEach((user) => {
+    const email = normalizeUserEmail(user.email)
+    if (!deletedEmails.has(email)) {
+      usersMap.set(email, { ...user, email })
+    }
+  })
+
+  if (!raw) return Array.from(usersMap.values())
+
   try {
     const storedUsers = JSON.parse(raw) as DemoUser[]
-    const usersMap = new Map<string, DemoUser>()
-
-    defaultUsers.forEach((user) => {
-      usersMap.set(user.email.toLowerCase(), user)
-    })
 
     storedUsers.forEach((user) => {
-      const resolvedEmail = resolveMockEmail(user.email)
-      usersMap.set(resolvedEmail.toLowerCase(), {
+      const resolvedEmail = normalizeUserEmail(user.email)
+      if (deletedEmails.has(resolvedEmail)) return
+
+      usersMap.set(resolvedEmail, {
         ...user,
         email: resolvedEmail,
       })
@@ -348,26 +397,151 @@ export function getUsers(): DemoUser[] {
 
     return Array.from(usersMap.values())
   } catch {
-    return defaultUsers
+    return Array.from(usersMap.values())
   }
 }
 
 export function addUser(user: DemoUser) {
-  if (typeof window === "undefined") return
-  const users = getUsers()
-  if (users.find(u => u.email === user.email)) {
-    throw new Error("Usuário já existe")
+  if (typeof window === "undefined") return []
+
+  const normalizedUser: DemoUser = {
+    ...user,
+    id: user.id || createPublicProfileId(),
+    publicProfileId:
+      user.role === "modelo"
+        ? user.publicProfileId || createPublicProfileId()
+        : undefined,
+    name: user.name.trim(),
+    email: normalizeUserEmail(user.email),
+    password: user.password.trim(),
+    plan: user.role === "cliente" ? user.plan || "free" : undefined,
   }
-  const newUsers = [...users, user]
-  safeSetItem(USERS_STORAGE_KEY, JSON.stringify(newUsers))
+
+  if (!normalizedUser.name) {
+    throw new Error("Informe o nome do usuário.")
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedUser.email)) {
+    throw new Error("Informe um e-mail válido.")
+  }
+  if (normalizedUser.password.length < 6) {
+    throw new Error("A senha deve ter pelo menos 6 caracteres.")
+  }
+
+  const users = getUsers()
+  if (users.some((existingUser) => normalizeUserEmail(existingUser.email) === normalizedUser.email)) {
+    throw new Error("Já existe um usuário com este e-mail.")
+  }
+
+  const deletedEmails = getDeletedUserEmails()
+  deletedEmails.delete(normalizedUser.email)
+
+  const newUsers = [...users, normalizedUser]
+  if (
+    !safeSetItem(USERS_STORAGE_KEY, JSON.stringify(newUsers)) ||
+    !safeSetItem(DELETED_USERS_STORAGE_KEY, JSON.stringify(Array.from(deletedEmails)))
+  ) {
+    throw new Error("Não foi possível salvar o usuário no navegador.")
+  }
+
+  if (normalizedUser.role === "modelo" && !getModelProfile(normalizedUser.email)) {
+    const profileSaved = saveModelProfile(normalizedUser.email, {
+      publicId: normalizedUser.publicProfileId,
+      artisticName: normalizedUser.name,
+      phone: "",
+      city: "",
+      age: "",
+      bio: "",
+      services: [],
+      fetishes: [],
+      exclusions: [],
+      priceRange: "",
+      characteristics: {
+        hairColor: "",
+        ethnicity: "",
+        bodyType: "",
+        height: "",
+        age: "",
+        eyes: "",
+        breasts: "",
+        tattoos: "",
+        piercings: "",
+      },
+      photoItems: [],
+      photos: [],
+      stories: [],
+    })
+
+    if (!profileSaved) {
+      throw new Error("A conta foi criada, mas o perfil local não pôde ser iniciado.")
+    }
+  }
+
+  notifyUsersChanged()
   return newUsers
 }
 
+export function cacheRemoteUsers(remoteUsers: DemoUser[]) {
+  if (typeof window === "undefined") return []
+
+  const currentUsers = getUsers()
+  const usersByEmail = new Map(
+    currentUsers.map((user) => [normalizeUserEmail(user.email), user])
+  )
+
+  remoteUsers.forEach((remoteUser) => {
+    const email = normalizeUserEmail(remoteUser.email)
+    const existing = usersByEmail.get(email)
+    usersByEmail.set(email, {
+      ...existing,
+      ...remoteUser,
+      email,
+      password: existing?.password || remoteUser.password || "",
+    })
+  })
+
+  const users = Array.from(usersByEmail.values())
+  if (!safeSetItem(USERS_STORAGE_KEY, JSON.stringify(users))) {
+    throw new Error("Não foi possível atualizar o cache local de usuários.")
+  }
+
+  notifyUsersChanged()
+  return users
+}
+
 export function removeUser(email: string) {
-  if (typeof window === "undefined") return
+  if (typeof window === "undefined") return []
+
+  const normalizedEmail = normalizeUserEmail(email)
+  if (normalizedEmail === "admin@email.com") {
+    throw new Error("Não é possível remover o administrador principal.")
+  }
+
   const users = getUsers()
-  const newUsers = users.filter(u => u.email !== email)
-  safeSetItem(USERS_STORAGE_KEY, JSON.stringify(newUsers))
+  const userToRemove = users.find(
+    (user) => normalizeUserEmail(user.email) === normalizedEmail
+  )
+  if (!userToRemove) {
+    throw new Error("Usuário não encontrado.")
+  }
+
+  const newUsers = users.filter(
+    (user) => normalizeUserEmail(user.email) !== normalizedEmail
+  )
+  const deletedEmails = getDeletedUserEmails()
+  deletedEmails.add(normalizedEmail)
+
+  if (
+    !safeSetItem(USERS_STORAGE_KEY, JSON.stringify(newUsers)) ||
+    !safeSetItem(DELETED_USERS_STORAGE_KEY, JSON.stringify(Array.from(deletedEmails)))
+  ) {
+    throw new Error("Não foi possível remover o usuário do navegador.")
+  }
+
+  if (userToRemove.role === "modelo") {
+    removeModelProfile(normalizedEmail)
+  }
+
+  notifyUsersChanged()
   return newUsers
 }
 
@@ -381,7 +555,9 @@ export function updateUserPlan(email: string, plan: "free" | "vip") {
       plan,
     }
   })
-  safeSetItem(USERS_STORAGE_KEY, JSON.stringify(newUsers))
+  if (!safeSetItem(USERS_STORAGE_KEY, JSON.stringify(newUsers))) {
+    throw new Error("Não foi possível atualizar o plano do usuário.")
+  }
   const raw = window.localStorage.getItem(STORAGE_KEY)
   if (raw) {
     try {
@@ -393,6 +569,7 @@ export function updateUserPlan(email: string, plan: "free" | "vip") {
       }
     } catch {}
   }
+  notifyUsersChanged()
   return newUsers
 }
 
@@ -415,6 +592,8 @@ export async function localSignIn(email: string, password: string): Promise<{ us
   }
 
   const user: LocalUser = {
+    id: match.id,
+    publicProfileId: match.publicProfileId,
     email: match.email,
     role: match.role,
     name: match.name,
@@ -501,6 +680,7 @@ export function setHomeContent(updates: Partial<HomeContent>): HomeContent {
 }
 
 export type ModelProfile = {
+  publicId?: string
   artisticName: string
   phone: string
   city: string
@@ -546,6 +726,106 @@ export type Story = {
 }
 
 const MODEL_PROFILE_KEY = "spicy-model-profile"
+const MODEL_PROFILE_CHANNEL = "spicy-profile-updates"
+
+export function createPublicProfileId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID()
+  }
+
+  const randomBytes = Array.from({ length: 16 }, () =>
+    Math.floor(Math.random() * 256)
+  )
+  randomBytes[6] = (randomBytes[6] & 0x0f) | 0x40
+  randomBytes[8] = (randomBytes[8] & 0x3f) | 0x80
+  const hex = randomBytes.map((value) => value.toString(16).padStart(2, "0"))
+
+  return [
+    hex.slice(0, 4).join(""),
+    hex.slice(4, 6).join(""),
+    hex.slice(6, 8).join(""),
+    hex.slice(8, 10).join(""),
+    hex.slice(10, 16).join(""),
+  ].join("-")
+}
+
+export function subscribeToModelProfileChanges(callback: () => void) {
+  if (typeof window === "undefined") return () => {}
+
+  const handleProfileChange = () => callback()
+  const handleStorageChange = (event: StorageEvent) => {
+    if (!event.key || event.key === MODEL_PROFILE_KEY) callback()
+  }
+  const channel =
+    typeof BroadcastChannel !== "undefined"
+      ? new BroadcastChannel(MODEL_PROFILE_CHANNEL)
+      : null
+
+  window.addEventListener("spicy-profile-change", handleProfileChange)
+  window.addEventListener("storage", handleStorageChange)
+  if (channel) channel.onmessage = handleProfileChange
+
+  return () => {
+    window.removeEventListener("spicy-profile-change", handleProfileChange)
+    window.removeEventListener("storage", handleStorageChange)
+    channel?.close()
+  }
+}
+
+function notifyModelProfileChanged(email: string) {
+  if (typeof window === "undefined") return
+
+  window.dispatchEvent(
+    new CustomEvent("spicy-profile-change", {
+      detail: { email },
+    })
+  )
+
+  if (typeof BroadcastChannel !== "undefined") {
+    const channel = new BroadcastChannel(MODEL_PROFILE_CHANNEL)
+    channel.postMessage({ email, updatedAt: Date.now() })
+    channel.close()
+  }
+}
+
+export function removeModelProfile(email: string) {
+  if (typeof window === "undefined") return false
+
+  const resolvedEmail = resolveMockEmail(email)
+  const allProfilesRaw = window.localStorage.getItem(MODEL_PROFILE_KEY)
+  let allProfiles: Record<string, ModelProfile> = {}
+
+  if (allProfilesRaw) {
+    try {
+      allProfiles = JSON.parse(allProfilesRaw)
+    } catch {
+      allProfiles = {}
+    }
+  }
+
+  delete allProfiles[resolvedEmail]
+  Object.keys(allProfiles).forEach((storedEmail) => {
+    if (resolveMockEmail(storedEmail) === resolvedEmail) {
+      delete allProfiles[storedEmail]
+    }
+  })
+
+  const deletedProfiles = getDeletedModelProfileEmails()
+  deletedProfiles.add(resolvedEmail)
+
+  if (
+    !safeSetItem(MODEL_PROFILE_KEY, JSON.stringify(allProfiles)) ||
+    !safeSetItem(
+      DELETED_MODEL_PROFILES_STORAGE_KEY,
+      JSON.stringify(Array.from(deletedProfiles))
+    )
+  ) {
+    throw new Error("Não foi possível excluir o perfil da modelo.")
+  }
+
+  notifyModelProfileChanged(resolvedEmail)
+  return true
+}
 
 function createPhotoId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -596,7 +876,9 @@ export function getProfileCoverImage(profile?: Partial<ModelProfile> | null): st
   return getProfilePhotoItems(profile)[0]?.url || profile?.coverImage || profile?.photos?.[0]
 }
 
-export function normalizeModelProfile(profile: ModelProfile): ModelProfile {
+export function normalizeModelProfile<T extends ModelProfile>(
+  profile: T
+): T & ModelProfile {
   const photoItems = getProfilePhotoItems(profile)
 
   return {
@@ -604,23 +886,29 @@ export function normalizeModelProfile(profile: ModelProfile): ModelProfile {
     photoItems,
     photos: photoItems.map((photo) => photo.url),
     coverImage: photoItems[0]?.url || profile.coverImage,
-  }
+  } as T & ModelProfile
 }
 
 export function getModelProfile(id: string): ModelProfile | null {
   // 1. Try to find by email
   let email = resolveMockEmail(id);
   
-  // If id is not an email, it might be a slug
+  // If id is not an email, it might be a public UUID or a legacy slug.
   if (!id.includes("@")) {
     const allProfiles = getAllLocalProfiles();
-    const found = allProfiles.find(p => slugify(p.artisticName) === id);
+    const found = allProfiles.find(
+      p => p.publicId === id || slugify(p.artisticName) === id
+    );
     if (found) {
       email = found.email;
     } else {
       // If not found by slug, and not an email, return null
       return null;
     }
+  }
+
+  if (isModelProfileDeleted(email)) {
+    return null
   }
 
   // Check local storage first
@@ -664,15 +952,26 @@ export function saveModelProfile(email: string, profile: ModelProfile) {
       }
     }
     
-    allProfiles[resolvedEmail] = normalizeModelProfile({ ...profile, email: resolvedEmail })
-    const saved = safeSetItem(MODEL_PROFILE_KEY, JSON.stringify(allProfiles))
+    const publicId =
+      profile.publicId ||
+      allProfiles[resolvedEmail]?.publicId ||
+      createPublicProfileId()
+    allProfiles[resolvedEmail] = normalizeModelProfile({
+      ...profile,
+      publicId,
+      email: resolvedEmail,
+    })
+    const deletedProfiles = getDeletedModelProfileEmails()
+    deletedProfiles.delete(resolvedEmail)
+    const saved =
+      safeSetItem(MODEL_PROFILE_KEY, JSON.stringify(allProfiles)) &&
+      safeSetItem(
+        DELETED_MODEL_PROFILES_STORAGE_KEY,
+        JSON.stringify(Array.from(deletedProfiles))
+      )
 
     if (saved) {
-      window.dispatchEvent(
-        new CustomEvent("spicy-profile-change", {
-          detail: { email: resolvedEmail },
-        })
-      )
+      notifyModelProfileChanged(resolvedEmail)
     }
 
     return saved
@@ -713,11 +1012,13 @@ export function estimateModelProfileStorageSize(email: string, profile: ModelPro
 export function getAllLocalProfiles(): (ModelProfile & { email: string })[] {
   const profilesMap: Record<string, ModelProfile & { email: string }> = {}
   const mockEmailMappings = buildMockEmailMappings()
+  const deletedProfiles = getDeletedModelProfileEmails()
 
   // 1. Add mock profiles from mock-profiles.ts
   mockProfiles.forEach(mp => {
     const mapping = mockEmailMappings.find((item) => item.id === mp.id)
     const email = mapping?.email || `mock${mp.id}@spicy.com`
+    if (deletedProfiles.has(resolveMockEmail(email))) return
     
     // Check if we have a seed for this specific name/email to get stories/photos
     const seedMatch = Object.values(SEED_PROFILES).find(s => 
@@ -754,6 +1055,7 @@ export function getAllLocalProfiles(): (ModelProfile & { email: string })[] {
 
   // 2. Add seed profiles (overriding if same email, but they are different)
   Object.keys(SEED_PROFILES).forEach(email => {
+    if (deletedProfiles.has(resolveMockEmail(email))) return
     profilesMap[email] = normalizeModelProfile({ ...SEED_PROFILES[email], email })
   })
 
@@ -765,6 +1067,7 @@ export function getAllLocalProfiles(): (ModelProfile & { email: string })[] {
         const localProfiles = JSON.parse(allProfilesRaw)
         Object.keys(localProfiles).forEach(email => {
           const resolvedEmail = resolveMockEmail(email)
+          if (deletedProfiles.has(resolvedEmail)) return
           // If profile exists in seed, merge. If not (new user), just use local.
           if (profilesMap[resolvedEmail]) {
             profilesMap[resolvedEmail] = normalizeModelProfile({ ...profilesMap[resolvedEmail], ...localProfiles[email], email: resolvedEmail })

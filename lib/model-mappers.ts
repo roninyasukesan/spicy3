@@ -7,6 +7,7 @@ export function mapLocalProfileToModel(profile: ModelProfile & { email: string }
 
   return {
     id: profile.email,
+    publicId: profile.publicId,
     name: profile.artisticName,
     city: profile.city,
     price: profile.priceRange,

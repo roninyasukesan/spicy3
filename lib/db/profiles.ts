@@ -77,9 +77,10 @@ export async function fetchProfileById(id: string): Promise<DbProfile | null> {
   // Check local storage first (client-side only)
   if (typeof window !== "undefined") {
     try {
-      const { getModelProfile } = await import("@/lib/local-auth");
+      const { getModelProfile, isModelProfileDeleted } = await import("@/lib/local-auth");
       // Decode ID in case it's an email with special chars
       const decodedId = decodeURIComponent(id);
+      if (isModelProfileDeleted(decodedId)) return null;
       const local = getModelProfile(decodedId);
       
       if (local) {
@@ -116,5 +117,36 @@ export async function fetchProfileById(id: string): Promise<DbProfile | null> {
     .eq("id", id)
     .single()
   if (error) return null
-  return data ?? null
+  if (!data) return null
+  if (process.env.NEXT_PUBLIC_REMOTE_MEDIA_ENABLED !== "true") return data
+
+  try {
+    const response = await fetch(`/api/media?profileId=${encodeURIComponent(data.id)}`)
+    if (!response.ok) return data
+
+    const payload = await response.json()
+    const photos = (payload.media || []).filter(
+      (media: { media_type?: string }) => media.media_type === "photo"
+    )
+
+    if (photos.length === 0) return data
+
+    return {
+      ...data,
+      image_url:
+        photos.find((media: { is_cover?: boolean }) => media.is_cover)?.url ||
+        photos[0].url ||
+        data.image_url,
+      gallery: photos.map((media: { url: string }) => media.url),
+      gallery_items: photos.map(
+        (media: { id: string; url: string; is_blurred?: boolean }) => ({
+          id: media.id,
+          url: media.url,
+          isBlurred: Boolean(media.is_blurred),
+        })
+      ),
+    }
+  } catch {
+    return data
+  }
 }

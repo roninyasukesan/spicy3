@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Header } from "@/components/header";
-import { type UserRole } from "@/lib/utils";
-import { localGetUser, getHomeContent, setHomeContent, type HomeContent, getUsers, addUser, removeUser, updateUserPlan, type DemoUser, exportAllLocalData, getAllLocalProfiles, type ModelProfile } from "@/lib/local-auth";
+import { getProfileSearchPath, type UserRole } from "@/lib/utils";
+import { localGetUser, getHomeContent, setHomeContent, type HomeContent, getUsers, addUser, cacheRemoteUsers, removeUser, removeModelProfile, saveModelProfile, updateUserPlan, type DemoUser, exportAllLocalData, getAllLocalProfiles, type ModelProfile } from "@/lib/local-auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,7 +15,41 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Database, Download, Eye, LayoutDashboard, MessageSquare, Search, Settings, Users } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Database,
+  Download,
+  Eye,
+  LayoutDashboard,
+  LoaderCircle,
+  MessageSquare,
+  Search,
+  Settings,
+  Trash2,
+  UserPlus,
+  Users,
+} from "lucide-react";
+import {
+  deleteProfileMedia,
+  isRemoteMediaEnabled,
+  listProfileMedia,
+} from "@/lib/media-client";
+import {
+  createRemoteUser,
+  deleteRemoteUser,
+  fetchPublishedProfiles,
+  isRemoteDataEnabled,
+  listRemoteUsers,
+} from "@/lib/profile-client";
 
 export default function AdminDashboardPage() {
   const router = useRouter();
@@ -31,6 +65,10 @@ export default function AdminDashboardPage() {
   const [modelSearch, setModelSearch] = useState("");
   const [modelFilter, setModelFilter] = useState<"todos" | "com-fotos" | "com-stories">("todos");
   const [newUser, setNewUser] = useState({ name: "", email: "", password: "", role: "cliente" as UserRole, plan: "free" as "free" | "vip" });
+  const [isAddingUser, setIsAddingUser] = useState(false);
+  const [userPendingRemoval, setUserPendingRemoval] = useState<DemoUser | null>(null);
+  const [modelPendingRemoval, setModelPendingRemoval] = useState<(ModelProfile & { email: string }) | null>(null);
+  const [isRemovingUser, setIsRemovingUser] = useState(false);
 
   const refreshAdminData = () => {
     setUsersList(getUsers());
@@ -38,6 +76,8 @@ export default function AdminDashboardPage() {
   };
 
   useEffect(() => {
+    let active = true;
+
     const user = localGetUser();
     if (!user) {
       router.replace("/");
@@ -55,7 +95,60 @@ export default function AdminDashboardPage() {
     setHomeContentState(content);
     refreshAdminData();
     setRole(user.role);
-    setLoading(false);
+
+    const loadRemoteData = async () => {
+      if (!isRemoteDataEnabled()) {
+        if (active) setLoading(false);
+        return;
+      }
+
+      try {
+        const [remoteUsers, publishedProfiles] = await Promise.all([
+          listRemoteUsers(),
+          fetchPublishedProfiles(),
+        ]);
+        const cachedUsers = cacheRemoteUsers(remoteUsers);
+        const usersById = new Map(
+          cachedUsers
+            .filter((candidate) => candidate.id)
+            .map((candidate) => [candidate.id as string, candidate])
+        );
+
+        publishedProfiles.forEach((published) => {
+          const linkedUser = usersById.get(published.id);
+          if (!linkedUser?.email) return;
+          saveModelProfile(linkedUser.email, {
+            ...published,
+            phone: "",
+            photos: published.photoItems.map((photo) => photo.url),
+            coverImage: published.photoItems[0]?.url,
+            email: linkedUser.email,
+          });
+        });
+
+        if (active) refreshAdminData();
+      } catch (error) {
+        console.error("Falha ao carregar a gestão remota:", error);
+        if (active) {
+          toast({
+            title: "Supabase indisponível",
+            description:
+              error instanceof Error
+                ? error.message
+                : "Não foi possível carregar a gestão remota.",
+            variant: "destructive",
+          });
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    void loadRemoteData();
+
+    return () => {
+      active = false;
+    };
   }, [router]);
 
   const handleSaveHome = () => {
@@ -76,33 +169,132 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const handleAddUser = (e: React.FormEvent) => {
+  const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isAddingUser) return;
+
+    setIsAddingUser(true);
     try {
-      if (!newUser.name || !newUser.email || !newUser.password) {
-        throw new Error("Preencha todos os campos");
-      }
-      addUser({
+      const userToCreate: DemoUser = {
         ...newUser,
         plan: newUser.role === "cliente" ? newUser.plan : undefined,
-      });
-      refreshAdminData();
+      };
+      const managedUser = isRemoteDataEnabled()
+        ? await createRemoteUser(userToCreate)
+        : userToCreate;
+      const updatedUsers = addUser(managedUser);
+      setUsersList(updatedUsers);
+      setAllModels(getAllLocalProfiles());
       setNewUser({ name: "", email: "", password: "", role: "cliente", plan: "free" });
-      toast({ title: "Usuário adicionado com sucesso" });
-    } catch (error: any) {
-      toast({ title: "Erro ao adicionar usuário", description: error.message, variant: "destructive" });
+      toast({
+        title: "Usuário adicionado",
+        description: isRemoteDataEnabled()
+          ? "A conta e o perfil foram criados no Supabase."
+          : "Conta criada somente neste navegador. A publicação remota está desativada.",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro ao adicionar usuário",
+        description: error instanceof Error ? error.message : "Não foi possível adicionar o usuário.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAddingUser(false);
     }
   };
 
-  const handleDeleteUser = (email: string) => {
-    if (email === "admin@email.com") {
-      toast({ title: "Não é possível remover o admin principal", variant: "destructive" });
+  const handleDeleteUser = async () => {
+    if (!userPendingRemoval || isRemovingUser) return;
+
+    const currentUser = localGetUser();
+    if (currentUser?.email.toLowerCase() === userPendingRemoval.email.toLowerCase()) {
+      toast({
+        title: "Não é possível remover a conta atual",
+        description: "Entre com outro administrador antes de remover esta conta.",
+        variant: "destructive",
+      });
+      setUserPendingRemoval(null);
       return;
     }
-    if (window.confirm("Tem certeza que deseja remover este usuário?")) {
-      removeUser(email);
-      refreshAdminData();
-      toast({ title: "Usuário removido com sucesso" });
+
+    setIsRemovingUser(true);
+    try {
+      if (isRemoteDataEnabled()) {
+        if (!userPendingRemoval.id) {
+          throw new Error("O usuário não possui um identificador remoto.")
+        }
+        await deleteRemoteUser(userPendingRemoval.id);
+      } else if (
+        userPendingRemoval.role === "modelo" &&
+        userPendingRemoval.id &&
+        isRemoteMediaEnabled()
+      ) {
+        const remoteMedia = await listProfileMedia(userPendingRemoval.id);
+        await Promise.all(
+          remoteMedia.map((media) => deleteProfileMedia(media.id))
+        );
+      }
+
+      const updatedUsers = removeUser(userPendingRemoval.email);
+      setUsersList(updatedUsers);
+      setAllModels(getAllLocalProfiles());
+      toast({
+        title: "Usuário removido",
+        description:
+          isRemoteDataEnabled()
+            ? `${userPendingRemoval.name} foi removido do Supabase e da cópia local.`
+            : userPendingRemoval.role === "modelo"
+            ? `${userPendingRemoval.name}, sua conta e seu perfil foram excluídos.`
+            : `${userPendingRemoval.name} não pode mais acessar a plataforma.`,
+      });
+      setUserPendingRemoval(null);
+    } catch (error) {
+      toast({
+        title: "Erro ao remover usuário",
+        description: error instanceof Error ? error.message : "Não foi possível remover o usuário.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRemovingUser(false);
+    }
+  };
+
+  const requestModelRemoval = (model: ModelProfile & { email: string }) => {
+    const linkedUser = usersList.find(
+      (user) => user.email.toLowerCase() === model.email.toLowerCase()
+    );
+
+    if (linkedUser) {
+      setUserPendingRemoval(linkedUser);
+      return;
+    }
+
+    setModelPendingRemoval(model);
+  };
+
+  const handleDeleteModel = () => {
+    if (!modelPendingRemoval || isRemovingUser) return;
+
+    setIsRemovingUser(true);
+    try {
+      removeModelProfile(modelPendingRemoval.email);
+      setAllModels(getAllLocalProfiles());
+      toast({
+        title: "Modelo excluída",
+        description: `${modelPendingRemoval.artisticName} e suas mídias locais foram removidas.`,
+      });
+      setModelPendingRemoval(null);
+    } catch (error) {
+      toast({
+        title: "Erro ao excluir modelo",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível excluir o perfil da modelo.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRemovingUser(false);
     }
   };
 
@@ -332,6 +524,9 @@ export default function AdminDashboardPage() {
                     <Label htmlFor="name" className="text-white">Nome</Label>
                     <Input
                       id="name"
+                      name="name"
+                      autoComplete="name"
+                      required
                       value={newUser.name}
                       onChange={e => setNewUser({ ...newUser, name: e.target.value })}
                       placeholder="Nome"
@@ -342,6 +537,10 @@ export default function AdminDashboardPage() {
                     <Label htmlFor="email" className="text-white">E-mail</Label>
                     <Input
                       id="email"
+                      name="email"
+                      type="email"
+                      autoComplete="email"
+                      required
                       value={newUser.email}
                       onChange={e => setNewUser({ ...newUser, email: e.target.value })}
                       placeholder="email@exemplo.com"
@@ -352,9 +551,14 @@ export default function AdminDashboardPage() {
                     <Label htmlFor="password" className="text-white">Senha</Label>
                     <Input
                       id="password"
+                      name="password"
+                      type="password"
+                      autoComplete="new-password"
+                      minLength={6}
+                      required
                       value={newUser.password}
                       onChange={e => setNewUser({ ...newUser, password: e.target.value })}
-                      placeholder="Senha"
+                      placeholder="Mínimo de 6 caracteres"
                       className="bg-dark-800 border-gray-700 text-white"
                     />
                   </div>
@@ -390,8 +594,13 @@ export default function AdminDashboardPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <Button type="submit" className="bg-primary hover:bg-primary/90 text-white">
-                    Adicionar
+                  <Button type="submit" disabled={isAddingUser} className="bg-primary hover:bg-primary/90 text-white">
+                    {isAddingUser ? (
+                      <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <UserPlus className="mr-2 h-4 w-4" />
+                    )}
+                    {isAddingUser ? "Adicionando..." : "Adicionar"}
                   </Button>
                 </form>
               </CardContent>
@@ -491,15 +700,23 @@ export default function AdminDashboardPage() {
                               <Button
                                 variant="destructive"
                                 size="sm"
-                                onClick={() => handleDeleteUser(user.email)}
+                                onClick={() => setUserPendingRemoval(user)}
                                 disabled={user.email === "admin@email.com"}
                               >
+                                <Trash2 className="mr-2 h-4 w-4" />
                                 Remover
                               </Button>
                             </div>
                           </TableCell>
                         </TableRow>
                       ))}
+                      {filteredUsers.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={6} className="py-8 text-center text-gray-500">
+                            Nenhum usuário encontrado.
+                          </TableCell>
+                        </TableRow>
+                      )}
                     </TableBody>
                   </Table>
                 </div>
@@ -597,9 +814,24 @@ export default function AdminDashboardPage() {
                                 variant="ghost"
                                 size="sm"
                                 className="text-gray-300 hover:text-white hover:bg-dark-800"
-                                onClick={() => router.push(`/modelo/${encodeURIComponent(model.email)}`)}
+                                onClick={() =>
+                                  router.push(
+                                    getProfileSearchPath(
+                                      model.artisticName,
+                                      model.publicId || model.email
+                                    )
+                                  )
+                                }
                               >
                                 Ver Publico
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => requestModelRemoval(model)}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Excluir
                               </Button>
                             </div>
                           </TableCell>
@@ -684,6 +916,73 @@ export default function AdminDashboardPage() {
           </TabsContent>
         </Tabs>
       </main>
+
+      <AlertDialog
+        open={Boolean(userPendingRemoval)}
+        onOpenChange={(open) => {
+          if (!open && !isRemovingUser) setUserPendingRemoval(null);
+        }}
+      >
+        <AlertDialogContent className="border-gray-800 bg-dark-900 text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover usuário?</AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-400">
+              A conta de {userPendingRemoval?.name} ({userPendingRemoval?.email}) perderá o acesso.
+              {userPendingRemoval?.role === "modelo"
+                ? " O perfil, as fotos e os stories locais também serão excluídos."
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              disabled={isRemovingUser}
+              className="border-gray-700 bg-transparent text-gray-200 hover:bg-dark-800 hover:text-white"
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteUser}
+              disabled={isRemovingUser}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              {isRemovingUser && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+              {isRemovingUser ? "Removendo..." : "Remover usuário"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={Boolean(modelPendingRemoval)}
+        onOpenChange={(open) => {
+          if (!open && !isRemovingUser) setModelPendingRemoval(null);
+        }}
+      >
+        <AlertDialogContent className="border-gray-800 bg-dark-900 text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir modelo?</AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-400">
+              O perfil de {modelPendingRemoval?.artisticName}, suas fotos e seus stories locais serão removidos da plataforma.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              disabled={isRemovingUser}
+              className="border-gray-700 bg-transparent text-gray-200 hover:bg-dark-800 hover:text-white"
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteModel}
+              disabled={isRemovingUser}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              {isRemovingUser && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+              {isRemovingUser ? "Excluindo..." : "Excluir modelo"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <footer className="border-t border-gray-800 bg-dark-950 py-8">
         <div className="container mx-auto px-4 text-center text-gray-500 text-sm">

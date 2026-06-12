@@ -4,8 +4,8 @@ import { useEffect, useState, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { compressImage } from "@/lib/image-utils";
 import { Header } from "@/components/header";
-import { type UserRole, cn } from "@/lib/utils";
-import { localGetUser, getAllLocalProfiles, getModelProfile, saveModelProfile, getProfilePhotoItems, type ModelPhoto, type ModelProfile, type Story } from "@/lib/local-auth";
+import { type UserRole, cn, getProfileSearchPath } from "@/lib/utils";
+import { createPublicProfileId, localGetUser, getAllLocalProfiles, getModelProfile, saveModelProfile, getProfilePhotoItems, type ModelPhoto, type ModelProfile, type Story } from "@/lib/local-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,6 +21,15 @@ import { PHYSICAL_CHARACTERISTICS, type PhysicalCharacteristics } from "@/lib/ph
 import { AudioPlayerWave } from "@/components/ui/audio-player-wave";
 import { Dialog, DialogContent, DialogTitle, DialogHeader } from "@/components/ui/dialog";
 import Image from "next/image";
+import {
+  isRemoteMediaEnabled,
+  syncRemoteProfilePhotos,
+} from "@/lib/media-client";
+import {
+  fetchPublishedProfile,
+  isRemoteDataEnabled,
+  saveRemoteProfile,
+} from "@/lib/profile-client";
 
 const SERVICES_LIST = ["Acompanhante", "Massagem", "Jantar", "Eventos", "Viagens", "Fetiches"];
 type SaveStatus = "idle" | "compressing" | "saving" | "success";
@@ -40,6 +49,8 @@ export default function ModeloDashboardPage() {
   const [previewMedia, setPreviewMedia] = useState<{ url: string, type: 'image' | 'video' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const storyInputRef = useRef<HTMLInputElement>(null);
+  const saveInFlightRef = useRef(false);
+  const saveResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   const [profile, setProfile] = useState<ModelProfile>({
     artisticName: "",
@@ -97,11 +108,52 @@ export default function ModeloDashboardPage() {
       setEditingName(user.name);
     }
 
-    setLoading(false);
+    if (!isRemoteDataEnabled() || !user.id) {
+      setLoading(false);
+      return;
+    }
+
+    void (async () => {
+      try {
+        const published = await fetchPublishedProfile(user.id!);
+        if (!published) return;
+
+        const remoteProfile: ModelProfile = {
+          ...published,
+          phone: savedProfile?.phone || "",
+          photos: published.photoItems.map((photo) => photo.url),
+          coverImage: published.photoItems[0]?.url,
+          email: user.email,
+        };
+        saveModelProfile(user.email, remoteProfile);
+        setProfile(remoteProfile);
+        setEditingName(remoteProfile.artisticName || user.email);
+      } catch (error) {
+        console.error("Falha ao carregar o perfil publicado:", error);
+        toast({
+          title: "Perfil remoto indisponível",
+          description:
+            error instanceof Error
+              ? error.message
+              : "Foi carregada apenas a cópia local do perfil.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [router]);
 
+  useEffect(() => {
+    return () => {
+      if (saveResetTimerRef.current) {
+        clearTimeout(saveResetTimerRef.current);
+      }
+    };
+  }, []);
+
   const currentPhotoItems = getProfilePhotoItems(profile);
-  const isSaving = saveStatus !== "idle";
+  const isSaving = saveStatus === "compressing" || saveStatus === "saving";
   const saveButtonLabel =
     saveStatus === "compressing"
       ? "Comprimindo e preparando..."
@@ -110,6 +162,12 @@ export default function ModeloDashboardPage() {
         : saveStatus === "success"
           ? "Salvo com sucesso"
         : "Salvar Alterações";
+  const saveButtonClassName = cn(
+    "min-w-48 bg-primary text-white transition-all duration-300 hover:bg-primary/90",
+    (saveStatus === "compressing" || saveStatus === "saving") &&
+      "animate-pulse scale-[0.98] bg-amber-600 hover:bg-amber-600 shadow-lg shadow-amber-950/30",
+    saveStatus === "success" && "bg-emerald-600 hover:bg-emerald-600"
+  );
 
   const updatePhotoItems = (photoItems: ModelPhoto[]) => {
     setProfile((prev) => ({
@@ -120,38 +178,130 @@ export default function ModeloDashboardPage() {
     }));
   };
 
-  const handleSaveProfile = async () => {
+  const handleSaveProfile = async (): Promise<boolean> => {
     const user = localGetUser();
-    if (user && editingEmail) {
-      setSaveStatus("compressing");
-      
-      await new Promise(resolve => setTimeout(resolve, 450));
-      setSaveStatus("saving");
-      await new Promise(resolve => setTimeout(resolve, 450));
+    if (saveInFlightRef.current) return false;
 
-      const success = saveModelProfile(editingEmail, {
+    if (!user) {
+      toast({
+        title: "Sessão não encontrada",
+        description: "Entre novamente para salvar as alterações.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    const targetEmail = editingEmail || user.email;
+    if (!targetEmail) {
+      toast({
+        title: "Perfil sem identificador",
+        description: "Não foi possível identificar o perfil que deve ser salvo.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    saveInFlightRef.current = true;
+    if (saveResetTimerRef.current) {
+      clearTimeout(saveResetTimerRef.current);
+      saveResetTimerRef.current = null;
+    }
+    setSaveStatus("saving");
+
+    try {
+      let profileToSave: ModelProfile = {
         ...profile,
+        publicId: profile.publicId || createPublicProfileId(),
         photoItems: currentPhotoItems,
         photos: currentPhotoItems.map((photo) => photo.url),
         coverImage: currentPhotoItems[0]?.url,
-      });
+      };
+      const success = saveModelProfile(targetEmail, profileToSave);
 
-      if (success) {
-        setSaveStatus("success");
-        toast({
-          title: "Alterações salvas!",
-          description: "Seu perfil foi atualizado com sucesso.",
-        });
-        window.setTimeout(() => setSaveStatus("idle"), 1600);
-      } else {
-        setSaveStatus("idle");
-        toast({
-          title: "Erro ao salvar perfil",
-          description: "O limite de armazenamento foi atingido. Tente remover algumas fotos.",
-          variant: "destructive"
-        });
+      if (!success) {
+        throw new Error(
+          "O limite de armazenamento foi atingido. Tente remover algumas fotos."
+        );
       }
+
+      if (isRemoteDataEnabled()) {
+        if (!user.id) {
+          throw new Error(
+            "A conta atual não possui vínculo com um usuário do Supabase."
+          );
+        }
+
+        const published = await saveRemoteProfile(user.id, profileToSave);
+        profileToSave = {
+          ...profileToSave,
+          publicId: published.publicId,
+        };
+
+        if (isRemoteMediaEnabled()) {
+          const syncedPhotoItems = await syncRemoteProfilePhotos(
+            user.id,
+            currentPhotoItems
+          );
+          profileToSave = {
+            ...profileToSave,
+            photoItems: syncedPhotoItems,
+            photos: syncedPhotoItems.map((photo) => photo.url),
+            coverImage: syncedPhotoItems[0]?.url,
+          };
+        }
+
+        if (!saveModelProfile(targetEmail, profileToSave)) {
+          throw new Error(
+            "O perfil foi publicado, mas a cópia local não pôde ser atualizada."
+          );
+        }
+      }
+
+      setProfile(profileToSave);
+      await new Promise(resolve => setTimeout(resolve, 350));
+      setSaveStatus("success");
+      saveInFlightRef.current = false;
+      toast({
+        title: "Alterações salvas!",
+        description: isRemoteDataEnabled()
+          ? isRemoteMediaEnabled()
+            ? "Perfil e fotos foram publicados para todos os usuários autorizados."
+            : "Perfil publicado no Supabase. As fotos continuam somente neste navegador."
+          : "Alterações salvas somente neste navegador. A publicação remota está desativada.",
+      });
+      saveResetTimerRef.current = setTimeout(() => {
+        setSaveStatus("idle");
+        saveResetTimerRef.current = null;
+      }, 1400);
+
+      return true;
+    } catch (error) {
+      saveInFlightRef.current = false;
+      setSaveStatus("idle");
+      toast({
+        title: "Erro ao salvar perfil",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível salvar as alterações.",
+        variant: "destructive"
+      });
+      return false;
     }
+  };
+
+  const handleViewPublicProfile = async () => {
+    const saved = await handleSaveProfile();
+    if (!saved) return;
+
+    const targetEmail = editingEmail || localGetUser()?.email || "";
+    const savedProfile = getModelProfile(targetEmail);
+    router.push(
+      getProfileSearchPath(
+        savedProfile?.artisticName || profile.artisticName || editingName || targetEmail,
+        savedProfile?.publicId || profile.publicId || targetEmail
+      )
+    );
   };
 
   const toggleService = (service: string) => {
@@ -211,21 +361,24 @@ export default function ModeloDashboardPage() {
   };
 
   const processFiles = async (files: File[]) => {
+    let addedCount = 0;
+
     for (const file of files) {
       if (!file.type.startsWith('image/')) continue;
       
       try {
         const compressedDataUrl = await compressImage(file, 900, 900, 0.55);
+        const nextPhoto: ModelPhoto = {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          url: compressedDataUrl,
+          isBlurred: false,
+        };
         
         setProfile((prev) => {
           const prevPhotoItems = getProfilePhotoItems(prev);
           const nextPhotoItems = [
             ...prevPhotoItems,
-            {
-              id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-              url: compressedDataUrl,
-              isBlurred: false,
-            },
+            nextPhoto,
           ];
 
           return {
@@ -235,21 +388,29 @@ export default function ModeloDashboardPage() {
             coverImage: nextPhotoItems[0]?.url,
           };
         });
+        addedCount += 1;
       } catch (error) {
-        console.error("Erro ao comprimir imagem:", error);
+        console.error("Erro ao processar imagem:", error);
         toast({ 
           title: "Erro ao processar imagem", 
-          description: "Não foi possível comprimir uma das imagens.",
+          description: error instanceof Error ? error.message : "Não foi possível processar uma das imagens.",
           variant: "destructive" 
         });
       }
     }
-    toast({ title: "Fotos adicionadas à galeria!" });
+
+    if (addedCount > 0) {
+      toast({
+        title: `${addedCount} foto${addedCount > 1 ? "s" : ""} pronta${addedCount > 1 ? "s" : ""} para salvar`,
+        description: "Revise capa, ordem e cadeado e clique em Salvar Alterações.",
+      });
+    }
   };
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      processFiles(Array.from(e.target.files));
+      await processFiles(Array.from(e.target.files));
+      e.target.value = "";
     }
   };
 
@@ -402,17 +563,16 @@ export default function ModeloDashboardPage() {
             <Button 
               variant="outline" 
               className="border-gray-700 text-gray-300"
-              onClick={() => {
-                const url = `/perfil/${encodeURIComponent(editingEmail)}`;
-                window.open(url, '_blank');
-              }}
+              onClick={handleViewPublicProfile}
+              disabled={isSaving}
             >
               Visualizar Perfil Público
             </Button>
             <Button 
-              onClick={handleSaveProfile} 
+              type="button"
+              onClick={() => void handleSaveProfile()}
               disabled={isSaving}
-              className="bg-primary hover:bg-primary/90 text-white"
+              className={saveButtonClassName}
             >
               {(saveStatus === "compressing" || saveStatus === "saving") && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
               {saveStatus === "success" && <CheckCircle2 className="mr-2 h-4 w-4" />}
@@ -663,10 +823,11 @@ export default function ModeloDashboardPage() {
 
             <div className="flex justify-end">
               <Button 
-                onClick={handleSaveProfile} 
+                type="button"
+                onClick={() => void handleSaveProfile()}
                 size="lg" 
                 disabled={isSaving}
-                className="bg-primary hover:bg-primary/90 text-white"
+                className={saveButtonClassName}
               >
                 {(saveStatus === "compressing" || saveStatus === "saving") && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
                 {saveStatus === "success" && <CheckCircle2 className="mr-2 h-4 w-4" />}
@@ -989,10 +1150,11 @@ export default function ModeloDashboardPage() {
 
             <div className="flex justify-end">
               <Button 
-                onClick={handleSaveProfile} 
+                type="button"
+                onClick={() => void handleSaveProfile()}
                 size="lg" 
                 disabled={isSaving}
-                className="bg-primary hover:bg-primary/90 text-white"
+                className={saveButtonClassName}
               >
                 {(saveStatus === "compressing" || saveStatus === "saving") && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
                 {saveStatus === "success" && <CheckCircle2 className="mr-2 h-4 w-4" />}

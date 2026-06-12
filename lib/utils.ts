@@ -18,6 +18,14 @@ export function slugify(text: string): string {
 }
 
 export function getPublicProfileSlug(name: string, uniqueId: string): string {
+  if (
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      uniqueId
+    )
+  ) {
+    return uniqueId.toLowerCase()
+  }
+
   const nameSlug = slugify(name || "perfil")
   const uniquePart = slugify(uniqueId.split("@")[0] || uniqueId)
 
