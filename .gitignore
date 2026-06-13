@@ -11,5 +11,6 @@ build
 .kilocode/
 .kilocodemodes
 .playwright-cli/
+.playwright-mcp/
 .vscode/
 *.tsbuildinfo

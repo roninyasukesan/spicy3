@@ -28,17 +28,30 @@ const profileSchema = z.object({
   fetishes: z.array(z.string().max(120)).max(100),
   exclusions: z.array(z.string().max(120)).max(100),
   priceRange: z.string().max(120),
-  characteristics: z.object({
-    hairColor: z.string().max(120),
-    ethnicity: z.string().max(120),
-    bodyType: z.string().max(120),
-    height: z.string().max(120),
-    age: z.string().max(120),
-    eyes: z.string().max(120),
-    breasts: z.string().max(120),
-    tattoos: z.string().max(120),
-    piercings: z.string().max(120),
-  }),
+  characteristics: z
+    .object({
+      hairColor: z.string().max(120).optional(),
+      ethnicity: z.string().max(120).optional(),
+      bodyType: z.string().max(120).optional(),
+      height: z.string().max(120).optional(),
+      age: z.string().max(120).optional(),
+      ageRange: z.string().max(120).optional(),
+      eyes: z.string().max(120).optional(),
+      breasts: z.string().max(120).optional(),
+      tattoos: z.string().max(120).optional(),
+      piercings: z.string().max(120).optional(),
+    })
+    .transform((value) => ({
+      hairColor: value.hairColor || "",
+      ethnicity: value.ethnicity || "",
+      bodyType: value.bodyType || "",
+      height: value.height || "",
+      age: value.age || value.ageRange || "",
+      eyes: value.eyes || "",
+      breasts: value.breasts || "",
+      tattoos: value.tattoos || "",
+      piercings: value.piercings || "",
+    })),
   photos: z.array(z.string()).optional(),
   photoItems: z
     .array(

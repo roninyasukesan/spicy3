@@ -8,6 +8,30 @@ function stringArray(value: unknown) {
     : []
 }
 
+function normalizeCharacteristics(
+  value: unknown
+): ModelProfile["characteristics"] {
+  const source =
+    value && typeof value === "object"
+      ? (value as Record<string, unknown>)
+      : {}
+
+  const read = (key: string) =>
+    typeof source[key] === "string" ? String(source[key]) : ""
+
+  return {
+    hairColor: read("hairColor"),
+    ethnicity: read("ethnicity"),
+    bodyType: read("bodyType"),
+    height: read("height"),
+    age: read("age") || read("ageRange"),
+    eyes: read("eyes"),
+    breasts: read("breasts"),
+    tattoos: read("tattoos"),
+    piercings: read("piercings"),
+  }
+}
+
 export function profileUpdateFromModel(profile: ModelProfile) {
   const age = Number.parseInt(profile.age, 10)
   const gallery = (profile.photoItems || [])
@@ -48,20 +72,7 @@ export function serializePublishedProfile(
   row: ProfileRow,
   media: Array<Record<string, unknown>> = []
 ) {
-  const characteristics =
-    row.characteristics && typeof row.characteristics === "object"
-      ? (row.characteristics as ModelProfile["characteristics"])
-      : {
-          hairColor: "",
-          ethnicity: "",
-          bodyType: "",
-          height: "",
-          age: "",
-          eyes: "",
-          breasts: "",
-          tattoos: "",
-          piercings: "",
-        }
+  const characteristics = normalizeCharacteristics(row.characteristics)
   const remotePhotos = media
     .filter((item) => item.media_type === "photo")
     .map((item) => ({

@@ -10,10 +10,12 @@ import { ArrowLeft, Camera, Mail, Lock, Phone, MapPin, Upload, Crown, Flame } fr
 import { AnimatedText } from "@/components/animated-text";
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/components/ui/use-toast"
-import { useRouter } from "next/navigation"
 import { FETISH_CATEGORIES } from "@/lib/fetishes";
 import { PHYSICAL_CHARACTERISTICS, PhysicalCharacteristics } from "@/lib/physical-characteristics";
-import { uploadProfileImages } from "@/lib/db/storage";
+import {
+  isRemoteMediaEnabled,
+  uploadProfileMedia,
+} from "@/lib/media-client";
 
 interface ModelSignupFormProps {
   onBack: () => void
@@ -48,7 +50,6 @@ export function ModelSignupForm({ onBack }: ModelSignupFormProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [files, setFiles] = useState<File[]>([])
   const { toast } = useToast()
-  const router = useRouter()
 
   const services = ["Acompanhante", "Massagem", "Jantar", "Eventos", "Viagens", "Fetiches"]
 
@@ -118,7 +119,8 @@ export function ModelSignupForm({ onBack }: ModelSignupFormProps) {
             fetishes: formData.fetishes,
             exclusions: formData.exclusions,
             price_range: formData.priceRange,
-            role: 'model'
+            role: 'model',
+            characteristics: formData.characteristics,
           }
         }
       })
@@ -128,55 +130,37 @@ export function ModelSignupForm({ onBack }: ModelSignupFormProps) {
       }
 
       if (data?.session) {
-        const priceText =
-          formData.priceRange === "500+"
-            ? "R$ 500+/h"
-            : formData.priceRange
-                .split("-")
-                .map((p) => `R$ ${p}`)
-                .join(" - ") + "/h"
-
-        let galleryUrls: string[] = []
-        if (files.length > 0) {
-          galleryUrls = await uploadProfileImages(data.session.user.id, files)
-        }
-
-        const { error: insertError } = await supabase.from("profiles").insert({
-          name: formData.artisticName,
-          city: formData.city,
-          price: priceText,
-          image_url: null,
-          age: formData.age ? Number(formData.age) : null,
-          rating: null,
-          reviews: null,
-          is_verified: true,
-          bio: formData.bio,
-          services: formData.services,
-          fetishes: formData.fetishes,
-          gallery: galleryUrls,
-          characteristics: formData.characteristics,
-        })
-        if (insertError) {
+        if (files.length > 0 && isRemoteMediaEnabled()) {
+          await Promise.all(
+            files.map((file, index) =>
+              uploadProfileMedia({
+                file,
+                profileId: data.session!.user.id,
+                mediaType: "photo",
+                visibility: "public",
+                isCover: index === 0,
+              })
+            )
+          )
+        } else if (files.length > 0) {
           toast({
-            title: "Perfil criado parcialmente",
-            description: "Conta criada, mas não foi possível salvar o perfil. Tente após confirmar o email.",
-          })
-        } else {
-          toast({
-            title: "Perfil criado",
-            description: "Seu perfil premium foi salvo com sucesso.",
+            title: "Conta e perfil criados",
+            description:
+              "As fotos devem ser adicionadas no painel depois que o Google Drive for configurado.",
           })
         }
       } else {
         toast({
           title: "Confirmação necessária",
-          description: "Verifique seu email e faça login para concluir a criação do perfil.",
+          description:
+            "Verifique seu email e faça login para concluir a criação do perfil.",
         })
       }
 
       toast({
         title: "Cadastro realizado com sucesso!",
-        description: "Verifique seu email para confirmar o cadastro.",
+        description:
+          "O perfil foi preparado no Supabase. Verifique seu email para confirmar o cadastro.",
       })
       
       // Redirect or go back to login
