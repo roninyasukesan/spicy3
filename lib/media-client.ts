@@ -13,6 +13,21 @@ export function isRemoteMediaEnabled() {
   return process.env.NEXT_PUBLIC_REMOTE_MEDIA_ENABLED === "true"
 }
 
+type RemoteMediaHealth = {
+  ready: boolean
+  database?: {
+    configured?: boolean
+    reachable?: boolean
+    profileMediaReady?: boolean
+  }
+  drive?: {
+    configured?: boolean
+    reachable?: boolean
+    authMode?: "service-account" | "oauth" | null
+    folderConfigured?: boolean
+  }
+}
+
 async function withTimeout<T>(
   operation: Promise<T>,
   timeoutMs: number,
@@ -33,8 +48,12 @@ async function withTimeout<T>(
 }
 
 async function getAccessToken() {
-  const { data } = await withTimeout(
-    supabase.auth.getSession(),
+  const { data } = await withTimeout<{
+    data: { session: { access_token?: string } | null }
+  }>(
+    supabase.auth.getSession() as Promise<{
+      data: { session: { access_token?: string } | null }
+    }>,
     5000,
     "A sessão remota demorou demais para responder."
   )
@@ -59,6 +78,35 @@ async function authorizedFetch(input: RequestInfo | URL, init: RequestInit = {})
       Authorization: `Bearer ${accessToken}`,
     },
   })
+}
+
+async function requireRemoteMediaReady() {
+  const response = await authorizedFetch("/api/media/health", {
+    cache: "no-store",
+  })
+  const health = (await response.json()) as RemoteMediaHealth
+
+  if (response.ok && health.ready) return
+
+  if (!health.database?.configured) {
+    throw new Error(
+      "A mídia remota está desativada porque o Supabase do servidor não está configurado."
+    )
+  }
+  if (!health.database?.profileMediaReady) {
+    throw new Error(
+      "A tabela profile_media do Supabase não está disponível para a mídia remota."
+    )
+  }
+  if (!health.drive?.configured) {
+    throw new Error(
+      "Configure a autenticação e a pasta do Google Drive antes de enviar fotos."
+    )
+  }
+
+  throw new Error(
+    "O Google Drive não respondeu ou não permite gravar na pasta configurada."
+  )
 }
 
 export async function dataUrlToFile(dataUrl: string, originalName: string) {
@@ -187,6 +235,8 @@ async function syncRemoteProfilePhotosInternal(
   profileId: string,
   photoItems: ModelPhoto[]
 ) {
+  await requireRemoteMediaReady()
+
   const remoteMedia = await listProfileMedia(profileId)
   const remotePhotos = remoteMedia.filter((media) => media.media_type === "photo")
   const remoteById = new Map(remotePhotos.map((media) => [media.id, media]))

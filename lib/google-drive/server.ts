@@ -4,34 +4,133 @@ import { Readable } from "node:stream"
 import { google, type drive_v3 } from "googleapis"
 
 const DRIVE_FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
+const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive"
 
 let driveClient: drive_v3.Drive | null = null
 
-function requireGoogleDriveConfig() {
-  const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL
-  const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n")
-  const rootFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID
+export type GoogleDriveAuthMode = "service-account" | "oauth"
 
-  if (!clientEmail || !privateKey || !rootFolderId) {
-    throw new Error("Google Drive service account configuration is missing.")
-  }
+type GoogleDriveConfig = {
+  authMode: GoogleDriveAuthMode
+  rootFolderId: string
+  driveId?: string
+  clientEmail?: string
+  privateKey?: string
+  oauthClientId?: string
+  oauthClientSecret?: string
+  oauthRefreshToken?: string
+}
+
+function readGoogleDriveConfig() {
+  const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL
+  const privateKey = (
+    process.env.GOOGLE_PRIVATE_KEY ||
+    process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY
+  )?.replace(/\\n/g, "\n")
+  const oauthClientId = process.env.GOOGLE_OAUTH_CLIENT_ID
+  const oauthClientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET
+  const oauthRefreshToken = process.env.GOOGLE_OAUTH_REFRESH_TOKEN
+  const rootFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID
+  const driveId = process.env.GOOGLE_DRIVE_ID || undefined
+  const serviceAccountConfigured = Boolean(clientEmail && privateKey)
+  const oauthConfigured = Boolean(
+    oauthClientId && oauthClientSecret && oauthRefreshToken
+  )
 
   return {
     clientEmail,
     privateKey,
+    oauthClientId,
+    oauthClientSecret,
+    oauthRefreshToken,
     rootFolderId,
-    driveId: process.env.GOOGLE_DRIVE_ID || undefined,
+    driveId,
+    serviceAccountConfigured,
+    oauthConfigured,
   }
 }
 
-function getDriveClient() {
+export function getGoogleDriveConfigStatus() {
+  const config = readGoogleDriveConfig()
+  const authMode: GoogleDriveAuthMode | null =
+    config.serviceAccountConfigured
+      ? "service-account"
+      : config.oauthConfigured
+        ? "oauth"
+        : null
+  const folderConfigured = Boolean(config.rootFolderId)
+
+  return {
+    configured: Boolean(authMode && folderConfigured),
+    authMode,
+    folderConfigured,
+    serviceAccountConfigured: config.serviceAccountConfigured,
+    oauthConfigured: config.oauthConfigured,
+    sharedDriveConfigured: Boolean(config.driveId),
+  }
+}
+
+function requireGoogleDriveConfig(): GoogleDriveConfig {
+  const config = readGoogleDriveConfig()
+
+  if (!config.rootFolderId) {
+    throw new Error("GOOGLE_DRIVE_FOLDER_ID is missing.")
+  }
+
+  if (
+    config.serviceAccountConfigured &&
+    config.clientEmail &&
+    config.privateKey
+  ) {
+    return {
+      authMode: "service-account",
+      clientEmail: config.clientEmail,
+      privateKey: config.privateKey,
+      rootFolderId: config.rootFolderId,
+      driveId: config.driveId,
+    }
+  }
+
+  if (
+    config.oauthConfigured &&
+    config.oauthClientId &&
+    config.oauthClientSecret &&
+    config.oauthRefreshToken
+  ) {
+    return {
+      authMode: "oauth",
+      oauthClientId: config.oauthClientId,
+      oauthClientSecret: config.oauthClientSecret,
+      oauthRefreshToken: config.oauthRefreshToken,
+      rootFolderId: config.rootFolderId,
+      driveId: config.driveId,
+    }
+  }
+
+  throw new Error(
+    "Google Drive authentication is missing. Configure a service account or OAuth refresh token."
+  )
+}
+
+export function getDriveClient() {
   if (!driveClient) {
-    const { clientEmail, privateKey } = requireGoogleDriveConfig()
-    const auth = new google.auth.JWT({
-      email: clientEmail,
-      key: privateKey,
-      scopes: ["https://www.googleapis.com/auth/drive"],
-    })
+    const config = requireGoogleDriveConfig()
+    const auth =
+      config.authMode === "service-account"
+        ? new google.auth.JWT({
+            email: config.clientEmail,
+            key: config.privateKey,
+            scopes: [DRIVE_SCOPE],
+          })
+        : new google.auth.OAuth2(
+            config.oauthClientId,
+            config.oauthClientSecret
+          )
+
+    if (config.authMode === "oauth") {
+      auth.setCredentials({ refresh_token: config.oauthRefreshToken })
+    }
+
     driveClient = google.drive({ version: "v3", auth })
   }
 
@@ -75,6 +174,29 @@ async function getProfileFolderId(profileId: string) {
   }
 
   return created.data.id
+}
+
+export async function verifyGoogleDriveConnection() {
+  const drive = getDriveClient()
+  const config = requireGoogleDriveConfig()
+  const response = await drive.files.get({
+    fileId: config.rootFolderId,
+    fields: "id,name,mimeType,driveId,capabilities(canAddChildren)",
+    supportsAllDrives: true,
+  })
+
+  if (response.data.mimeType !== DRIVE_FOLDER_MIME_TYPE) {
+    throw new Error("GOOGLE_DRIVE_FOLDER_ID does not reference a folder.")
+  }
+  if (response.data.capabilities?.canAddChildren === false) {
+    throw new Error("Google Drive credentials cannot add files to the folder.")
+  }
+
+  return {
+    authMode: config.authMode,
+    folderName: response.data.name || null,
+    sharedDrive: Boolean(response.data.driveId || config.driveId),
+  }
 }
 
 export type DriveUploadInput = {
