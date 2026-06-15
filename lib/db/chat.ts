@@ -7,8 +7,17 @@ function hasSupabaseConfig() {
   return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
 }
 
+type MessageRow = {
+  id: string
+  sender_id: string
+  content: string | null
+  encrypted_data: string | null
+  created_at: string
+  is_read: boolean
+}
+
 // Map Supabase row to Message
-function mapRowToMessage(row: any): Message {
+function mapRowToMessage(row: MessageRow): Message {
   return {
     id: row.id,
     senderId: row.sender_id,
@@ -81,7 +90,7 @@ export async function fetchMessages(userId: string, contactId: string): Promise<
     return []
   }
 
-  return (data || []).map(row => ({
+  return (data || []).map((row: MessageRow) => ({
     ...mapRowToMessage(row),
     receiverId: row.sender_id === userId ? contactId : userId // Infer receiver
   }))

@@ -80,7 +80,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     const { data, error } = await admin
       .from("profiles")
       .select(
-        "id,public_id,name,display_name,city,age,bio,services,fetishes,exclusions,price,price_range,characteristics,gallery_items,stories"
+        "id,public_id,name,display_name,city,age,bio,services,fetishes,exclusions,price,price_range,characteristics,gallery_items,stories,voice_url"
       )
       .or(`id.eq.${parsedId.data},public_id.eq.${parsedId.data}`)
       .maybeSingle()
@@ -92,7 +92,9 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 
     const { data: media } = await admin
       .from("profile_media")
-      .select("id,profile_id,media_type,position,is_blurred,is_cover")
+      .select(
+        "id,profile_id,media_type,mime_type,position,is_blurred,is_cover,created_at"
+      )
       .eq("profile_id", data.id)
       .eq("status", "ready")
       .eq("visibility", "public")
@@ -138,7 +140,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       .update(profileUpdateFromModel(parsed.data as ModelProfile))
       .eq("id", profileId)
       .select(
-        "id,public_id,name,display_name,city,age,bio,services,fetishes,exclusions,price,price_range,characteristics,gallery_items,stories"
+        "id,public_id,name,display_name,city,age,bio,services,fetishes,exclusions,price,price_range,characteristics,gallery_items,stories,voice_url"
       )
       .single()
 
@@ -149,10 +151,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   } catch (error) {
     console.error("Failed to update profile:", error)
     return NextResponse.json(
-      {
-        error:
-          "O perfil ficou salvo somente neste navegador; a publicação no Supabase falhou.",
-      },
+      { error: "Não foi possível publicar o perfil no Supabase." },
       { status: 503 }
     )
   }

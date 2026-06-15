@@ -24,10 +24,12 @@ import { Dialog, DialogContent, DialogTitle, DialogHeader } from "@/components/u
 import Image from "next/image";
 import {
   isRemoteMediaEnabled,
-  syncRemoteProfilePhotos,
+  syncRemoteProfileMedia,
 } from "@/lib/media-client";
 import {
+  fetchPublishedProfile,
   isRemoteDataEnabled,
+  listRemoteUsers,
   saveRemoteProfile,
 } from "@/lib/profile-client";
 
@@ -90,40 +92,95 @@ export default function AdminEditModeloPage() {
   });
 
   useEffect(() => {
-    const user = localGetUser();
-    const requestedEmail = searchParams.get("email")?.trim() || "";
+    let active = true;
 
-    if (!user || user.role !== "admin") {
-      router.replace("/");
-      return;
-    }
+    void (async () => {
+      const user = localGetUser();
+      const requestedEmail = searchParams.get("email")?.trim() || "";
 
-    if (!requestedEmail) {
-      router.replace("/dashboard/admin");
-      return;
-    }
+      if (!user || user.role !== "admin") {
+        router.replace("/");
+        return;
+      }
 
-    setEditingEmail(requestedEmail);
-    const targetUser = getUsers().find(
-      (candidate) => candidate.email.toLowerCase() === requestedEmail.toLowerCase()
-    );
-    setEditingProfileId(targetUser?.id || null);
+      if (!requestedEmail) {
+        router.replace("/dashboard/admin");
+        return;
+      }
 
-    const savedProfile =
-      getModelProfile(requestedEmail) ||
-      getAllLocalProfiles().find((candidate) => candidate.email === requestedEmail) ||
-      null;
+      setEditingEmail(requestedEmail);
 
-    if (savedProfile) {
-      setProfile(savedProfile);
-      setEditingName(savedProfile.artisticName || requestedEmail);
-    } else {
-      setProfile((p) => ({ ...p, artisticName: requestedEmail }));
-      setEditingName(requestedEmail);
-    }
+      if (isRemoteDataEnabled()) {
+        try {
+          const remoteUsers = await listRemoteUsers();
+          const targetUser = remoteUsers.find(
+            (candidate) =>
+              candidate.email.toLowerCase() === requestedEmail.toLowerCase()
+          );
+          if (!targetUser?.id || targetUser.role !== "modelo") {
+            throw new Error("Modelo não encontrada no Supabase.");
+          }
 
-    setLoading(false);
-  }, [router, searchParams]);
+          const published = await fetchPublishedProfile(targetUser.id);
+          if (!published) {
+            throw new Error("Perfil da modelo não encontrado no Supabase.");
+          }
+          if (!active) return;
+          setEditingProfileId(targetUser.id);
+          setProfile({
+            ...published,
+            phone: "",
+            photos: published.photoItems.map((photo) => photo.url),
+            coverImage: published.photoItems[0]?.url,
+            email: targetUser.email,
+          });
+          setEditingName(published.artisticName || targetUser.name);
+        } catch (error) {
+          toast({
+            title: "Erro ao carregar modelo",
+            description:
+              error instanceof Error
+                ? error.message
+                : "Não foi possível carregar o perfil remoto.",
+            variant: "destructive",
+          });
+          router.replace("/dashboard/admin");
+          return;
+        } finally {
+          if (active) setLoading(false);
+        }
+        return;
+      }
+
+      const targetUser = getUsers().find(
+        (candidate) =>
+          candidate.email.toLowerCase() === requestedEmail.toLowerCase()
+      );
+      setEditingProfileId(targetUser?.id || null);
+      const savedProfile =
+        getModelProfile(requestedEmail) ||
+        getAllLocalProfiles().find(
+          (candidate) => candidate.email === requestedEmail
+        ) ||
+        null;
+
+      if (savedProfile) {
+        setProfile(savedProfile);
+        setEditingName(savedProfile.artisticName || requestedEmail);
+      } else {
+        setProfile((current) => ({
+          ...current,
+          artisticName: requestedEmail,
+        }));
+        setEditingName(requestedEmail);
+      }
+      setLoading(false);
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [router, searchParams, toast]);
 
   useEffect(() => {
     return () => {
@@ -201,16 +258,6 @@ export default function AdminEditModeloPage() {
         photos: currentPhotoItems.map((photo) => photo.url),
         coverImage: currentPhotoItems[0]?.url,
       };
-      const success = saveModelProfile(targetEmail, nextProfile);
-
-      if (!success) {
-        throw new Error(
-          isStorageNearLimit
-            ? `O perfil ocupa cerca de ${formatFileSize(estimatedStorageBytes)} e excedeu o espaço local. Remova algumas mídias ou ative o armazenamento remoto.`
-            : "O navegador não conseguiu persistir o perfil. Tente novamente."
-        );
-      }
-
       if (isRemoteDataEnabled()) {
         if (!editingProfileId) {
           throw new Error(
@@ -218,30 +265,25 @@ export default function AdminEditModeloPage() {
           );
         }
 
-        const published = await saveRemoteProfile(editingProfileId, nextProfile);
-        nextProfile = {
-          ...nextProfile,
-          publicId: published.publicId,
-        };
-
-        if (isRemoteMediaEnabled()) {
-          const syncedPhotoItems = await syncRemoteProfilePhotos(
-            editingProfileId,
-            currentPhotoItems
-          );
-          nextProfile = {
-            ...nextProfile,
-            photoItems: syncedPhotoItems,
-            photos: syncedPhotoItems.map((photo) => photo.url),
-            coverImage: syncedPhotoItems[0]?.url,
-          };
-        }
-
-        if (!saveModelProfile(targetEmail, nextProfile)) {
+        if (!isRemoteMediaEnabled()) {
           throw new Error(
-            "O perfil foi publicado, mas a cópia local não pôde ser atualizada."
+            "O armazenamento remoto de mídia está desativado. Ative o Google Drive antes de salvar."
           );
         }
+
+        nextProfile = await syncRemoteProfileMedia(
+          editingProfileId,
+          nextProfile
+        );
+        const published = await saveRemoteProfile(editingProfileId, nextProfile);
+        nextProfile = { ...nextProfile, publicId: published.publicId };
+        saveModelProfile(targetEmail, nextProfile);
+      } else if (!saveModelProfile(targetEmail, nextProfile)) {
+        throw new Error(
+          isStorageNearLimit
+            ? `O perfil ocupa cerca de ${formatFileSize(estimatedStorageBytes)} e excedeu o espaço local. Remova algumas mídias ou ative o armazenamento remoto.`
+            : "O navegador não conseguiu persistir o perfil. Tente novamente."
+        );
       }
 
       setProfile(nextProfile);
@@ -251,9 +293,7 @@ export default function AdminEditModeloPage() {
       toast({
         title: "Alterações salvas!",
         description: isRemoteDataEnabled()
-          ? isRemoteMediaEnabled()
-            ? `O perfil e as fotos de ${profile.artisticName || editingName} foram publicados.`
-            : `O perfil foi publicado, mas as fotos continuam somente neste navegador.`
+          ? `O perfil e as mídias de ${profile.artisticName || editingName} foram publicados.`
           : "Alterações salvas somente neste navegador. A publicação remota está desativada.",
       });
       saveResetTimerRef.current = setTimeout(() => {

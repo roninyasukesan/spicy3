@@ -1,119 +1,36 @@
-"use client";
+import { redirect } from "next/navigation"
+import { DashboardAuthBridge } from "@/components/dashboard-auth-bridge"
+import { DashboardLocalGuard } from "@/components/dashboard-local-guard"
+import type { LocalUser } from "@/lib/local-auth"
+import { isRemoteDataMode } from "@/lib/remote-mode"
+import { getAuthenticatedActor } from "@/lib/supabase/auth-server"
 
-import { useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
-import { localGetUser } from "@/lib/local-auth";
-import { hasSupabaseConfig } from "@/lib/supabase";
-import type { UserRole } from "@/lib/utils";
-
-function checkRouteAccess(pathname: string, userRole: UserRole | undefined): boolean {
-  if (!userRole) return false;
-
-  if (userRole === "admin") return true;
-
-  if (pathname.startsWith("/dashboard/admin")) {
-    return userRole === "admin";
-  }
-
-  if (pathname.startsWith("/dashboard/modelo")) {
-    return userRole === "modelo";
-  }
-
-  if (pathname.startsWith("/dashboard/cliente")) {
-    return userRole === "cliente";
-  }
-
-  if (pathname.startsWith("/dashboard/chat")) {
-    return true;
-  }
-
-  if (pathname === "/dashboard") {
-    return true;
-  }
-
-  return true;
+function applicationRole(role: string): LocalUser["role"] {
+  if (role === "admin") return "admin"
+  if (role === "model" || role === "modelo") return "modelo"
+  return "cliente"
 }
 
-function getDefaultRouteForRole(role: UserRole): string {
-  switch (role) {
-    case "admin":
-      return "/dashboard/admin";
-    case "modelo":
-      return "/dashboard/modelo";
-    case "cliente":
-      return "/dashboard/cliente";
-    default:
-      return "/dashboard/cliente";
-  }
-}
-
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-
-    const checkAuth = async () => {
-      try {
-        const localUser = localGetUser();
-
-        if (!localUser && hasSupabaseConfig()) {
-          const { supabase } = await import("@/lib/supabase");
-          const { data } = await supabase.auth.getSession();
-
-          if (!data.session) {
-            if (active) router.replace("/cadastro");
-            return;
-          }
-        }
-
-        if (!localUser) {
-          if (active) router.replace("/cadastro");
-          return;
-        }
-
-        const hasAccess = checkRouteAccess(pathname, localUser.role);
-
-        if (!hasAccess) {
-          if (active) {
-            router.replace("/dashboard/acesso-negado");
-          }
-          return;
-        }
-
-        if (pathname === "/dashboard") {
-          if (active) {
-            router.replace(getDefaultRouteForRole(localUser.role));
-          }
-          return;
-        }
-
-        if (active) setReady(true);
-      } catch {
-        router.replace("/cadastro");
-      }
-    };
-
-    checkAuth();
-
-    const onAuthChange = () => checkAuth();
-    window.addEventListener("spicy-auth-change", onAuthChange);
-
-    return () => {
-      active = false;
-      window.removeEventListener("spicy-auth-change", onAuthChange);
-    };
-  }, [router, pathname]);
-
-  if (!ready) {
-    return (
-      <div className="flex h-screen w-full items-center justify-center text-sm text-muted-foreground">
-        Verificando acesso...
-      </div>
-    );
+export default async function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  if (!isRemoteDataMode()) {
+    return <DashboardLocalGuard>{children}</DashboardLocalGuard>
   }
 
-  return <>{children}</>;
+  const actor = await getAuthenticatedActor()
+  if (!actor) redirect("/cadastro")
+
+  const user: LocalUser = {
+    id: actor.profile.id,
+    publicProfileId: actor.profile.publicId,
+    email: actor.profile.email || actor.user.email || "",
+    role: applicationRole(actor.role),
+    name: actor.profile.displayName,
+    plan: actor.planTier === "free" ? "free" : "vip",
+  }
+
+  return <DashboardAuthBridge user={user}>{children}</DashboardAuthBridge>
 }

@@ -23,7 +23,7 @@ import { Dialog, DialogContent, DialogTitle, DialogHeader } from "@/components/u
 import Image from "next/image";
 import {
   isRemoteMediaEnabled,
-  syncRemoteProfilePhotos,
+  syncRemoteProfileMedia,
 } from "@/lib/media-client";
 import {
   fetchPublishedProfile,
@@ -142,7 +142,7 @@ export default function ModeloDashboardPage() {
         setLoading(false);
       }
     })();
-  }, [router]);
+  }, [router, toast]);
 
   useEffect(() => {
     return () => {
@@ -216,45 +216,26 @@ export default function ModeloDashboardPage() {
         photos: currentPhotoItems.map((photo) => photo.url),
         coverImage: currentPhotoItems[0]?.url,
       };
-      const success = saveModelProfile(targetEmail, profileToSave);
-
-      if (!success) {
-        throw new Error(
-          "O limite de armazenamento foi atingido. Tente remover algumas fotos."
-        );
-      }
-
       if (isRemoteDataEnabled()) {
         if (!user.id) {
           throw new Error(
             "A conta atual não possui vínculo com um usuário do Supabase."
           );
         }
-
-        const published = await saveRemoteProfile(user.id, profileToSave);
-        profileToSave = {
-          ...profileToSave,
-          publicId: published.publicId,
-        };
-
-        if (isRemoteMediaEnabled()) {
-          const syncedPhotoItems = await syncRemoteProfilePhotos(
-            user.id,
-            currentPhotoItems
-          );
-          profileToSave = {
-            ...profileToSave,
-            photoItems: syncedPhotoItems,
-            photos: syncedPhotoItems.map((photo) => photo.url),
-            coverImage: syncedPhotoItems[0]?.url,
-          };
-        }
-
-        if (!saveModelProfile(targetEmail, profileToSave)) {
+        if (!isRemoteMediaEnabled()) {
           throw new Error(
-            "O perfil foi publicado, mas a cópia local não pôde ser atualizada."
+            "O armazenamento remoto de mídia está desativado. Ative o Google Drive antes de salvar."
           );
         }
+
+        profileToSave = await syncRemoteProfileMedia(user.id, profileToSave);
+        const published = await saveRemoteProfile(user.id, profileToSave);
+        profileToSave = { ...profileToSave, publicId: published.publicId };
+        saveModelProfile(targetEmail, profileToSave);
+      } else if (!saveModelProfile(targetEmail, profileToSave)) {
+        throw new Error(
+          "O limite de armazenamento foi atingido. Tente remover algumas fotos."
+        );
       }
 
       setProfile(profileToSave);
@@ -264,9 +245,7 @@ export default function ModeloDashboardPage() {
       toast({
         title: "Alterações salvas!",
         description: isRemoteDataEnabled()
-          ? isRemoteMediaEnabled()
-            ? "Perfil e fotos foram publicados para todos os usuários autorizados."
-            : "Perfil publicado no Supabase. As fotos continuam somente neste navegador."
+          ? "Perfil e mídias foram publicados no Supabase e Google Drive."
           : "Alterações salvas somente neste navegador. A publicação remota está desativada.",
       });
       saveResetTimerRef.current = setTimeout(() => {

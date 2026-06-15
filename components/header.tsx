@@ -10,6 +10,8 @@ import { LoginForm } from "@/components/login-form"
 import { type UserRole } from "@/lib/utils"
 import { localGetUser, localSignOut } from "@/lib/local-auth"
 import { getConversations } from "@/lib/local-chat"
+import { isRemoteDataEnabled } from "@/lib/profile-client"
+import { supabase } from "@/lib/supabase"
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -59,9 +61,14 @@ export function Header() {
     }
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     localSignOut()
     setRole(null)
+
+    if (isRemoteDataEnabled()) {
+      await supabase.auth.signOut()
+    }
+
     router.push("/")
     router.refresh()
   }

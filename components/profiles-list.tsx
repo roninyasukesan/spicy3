@@ -5,7 +5,11 @@ import { ProfileCard } from "@/components/profile-card";
 import { ModelDetailsModal, Model } from "@/components/model-details-modal";
 import { StoryViewer } from "@/components/story-viewer";
 import { useState, useEffect } from "react";
-import { getAllLocalProfiles, subscribeToModelProfileChanges } from "@/lib/local-auth";
+import {
+  getAllLocalProfiles,
+  localGetUser,
+  subscribeToModelProfileChanges,
+} from "@/lib/local-auth";
 import { mapLocalProfileToModel } from "@/lib/model-mappers";
 
 export function ProfilesList() {
@@ -13,6 +17,7 @@ export function ProfilesList() {
   const [storyModel, setStoryModel] = useState<Model | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [profiles, setProfiles] = useState<Model[]>([]);
+  const currentUser = localGetUser();
 
   useEffect(() => {
     const loadProfiles = () => {
@@ -88,6 +93,14 @@ export function ProfilesList() {
           onClose={handleCloseStory}
           modelName={storyModel.name}
           modelImage={storyModel.imageUrl}
+          modelId={storyModel.id}
+          hasAccess={
+            currentUser?.plan === "vip" ||
+            currentUser?.role === "admin" ||
+            currentUser?.role === "modelo" ||
+            currentUser?.subscribedModelIds?.includes(storyModel.id) ||
+            false
+          }
         />
       )}
     </section>

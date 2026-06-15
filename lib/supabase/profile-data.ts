@@ -80,6 +80,19 @@ export function serializePublishedProfile(
       url: `/api/media/${String(item.id)}`,
       isBlurred: Boolean(item.is_blurred),
     }))
+  const remoteStories = media
+    .filter((item) => item.media_type === "story")
+    .map((item) => ({
+      id: String(item.id),
+      mediaUrl: `/api/media/${String(item.id)}`,
+      mediaType: String(item.mime_type || "").startsWith("video/")
+        ? ("video" as const)
+        : ("image" as const),
+      duration: 5,
+      createdAt: String(item.created_at || new Date(0).toISOString()),
+      isBlurred: Boolean(item.is_blurred),
+    }))
+  const remoteAudio = media.find((item) => item.media_type === "audio")
   const storedItems = Array.isArray(row.gallery_items)
     ? (row.gallery_items as Array<Record<string, unknown>>)
         .filter((item) => typeof item.url === "string")
@@ -103,6 +116,16 @@ export function serializePublishedProfile(
     priceRange: String(row.price_range || row.price || ""),
     characteristics,
     photoItems: remotePhotos.length > 0 ? remotePhotos : storedItems,
-    stories: Array.isArray(row.stories) ? row.stories : [],
+    stories:
+      remoteStories.length > 0
+        ? remoteStories
+        : Array.isArray(row.stories)
+          ? row.stories
+          : [],
+    voiceUrl: remoteAudio
+      ? `/api/media/${String(remoteAudio.id)}`
+      : typeof row.voice_url === "string"
+        ? row.voice_url
+        : undefined,
   }
 }

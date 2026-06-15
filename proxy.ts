@@ -33,8 +33,8 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  // getUser validates and refreshes the session when necessary.
-  await supabase.auth.getUser()
+  // getClaims validates the JWT signature and refreshes cookies when necessary.
+  await supabase.auth.getClaims()
   return response
 }
 

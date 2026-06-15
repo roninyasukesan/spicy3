@@ -1,7 +1,7 @@
 "use client"
 
 import { supabase } from "@/lib/supabase"
-import type { ModelPhoto } from "@/lib/local-auth"
+import type { ModelPhoto, ModelProfile, Story } from "@/lib/local-auth"
 import {
   getProfileMediaUrl,
   type ProfileMediaRecord,
@@ -109,12 +109,24 @@ async function requireRemoteMediaReady() {
   )
 }
 
+function extensionForMimeType(mimeType: string) {
+  if (mimeType === "image/png") return "png"
+  if (mimeType === "image/webp") return "webp"
+  if (mimeType === "video/mp4") return "mp4"
+  if (mimeType === "video/webm") return "webm"
+  if (mimeType === "audio/mpeg") return "mp3"
+  if (mimeType === "audio/ogg") return "ogg"
+  if (mimeType === "audio/wav" || mimeType === "audio/x-wav") return "wav"
+  return mimeType.startsWith("image/") ? "jpg" : "bin"
+}
+
 export async function dataUrlToFile(dataUrl: string, originalName: string) {
   const response = await fetch(dataUrl)
   const blob = await response.blob()
   const baseName = originalName.replace(/\.[^.]+$/, "") || "photo"
-  return new File([blob], `${baseName}.jpg`, {
-    type: blob.type || "image/jpeg",
+  const mimeType = blob.type || "application/octet-stream"
+  return new File([blob], `${baseName}.${extensionForMimeType(mimeType)}`, {
+    type: mimeType,
   })
 }
 
@@ -229,6 +241,226 @@ export async function syncRemoteProfilePhotos(
     30000,
     "A sincronização das mídias demorou demais. O perfil foi mantido no modo local."
   )
+}
+
+function getRemoteMediaId(url?: string) {
+  if (!url) return null
+  const match = url.match(/^\/api\/media\/([0-9a-f-]{36})$/i)
+  return match?.[1] || null
+}
+
+async function syncRemoteStories(
+  profileId: string,
+  stories: Story[],
+  remoteMedia: Array<ProfileMediaRecord & { url: string }>
+) {
+  const remoteStories = remoteMedia.filter(
+    (media) => media.media_type === "story"
+  )
+  const remoteById = new Map(remoteStories.map((media) => [media.id, media]))
+  const retainedIds = new Set<string>()
+  const uploadedIds: string[] = []
+  const syncedStories: Story[] = []
+
+  try {
+    for (const [index, story] of stories.entries()) {
+      const remoteId = remoteById.has(story.id)
+        ? story.id
+        : getRemoteMediaId(story.mediaUrl)
+      const existing = remoteId ? remoteById.get(remoteId) : undefined
+
+      if (existing) {
+        retainedIds.add(existing.id)
+        syncedStories.push({
+          ...story,
+          id: existing.id,
+          mediaUrl: existing.url,
+          mediaType: existing.mime_type.startsWith("video/")
+            ? "video"
+            : "image",
+        })
+        continue
+      }
+
+      if (
+        !story.mediaUrl.startsWith("data:") &&
+        !story.mediaUrl.startsWith("blob:")
+      ) {
+        syncedStories.push(story)
+        continue
+      }
+
+      const file = await dataUrlToFile(
+        story.mediaUrl,
+        `story-${index + 1}`
+      )
+      const uploaded = await uploadProfileMedia({
+        file,
+        profileId,
+        mediaType: "story",
+        visibility: "public",
+        isBlurred: Boolean(story.isBlurred),
+      })
+      uploadedIds.push(uploaded.id)
+      retainedIds.add(uploaded.id)
+      syncedStories.push({
+        ...story,
+        id: uploaded.id,
+        mediaUrl: uploaded.url,
+        mediaType: uploaded.mime_type.startsWith("video/")
+          ? "video"
+          : "image",
+      })
+    }
+
+    await Promise.all(
+      remoteStories
+        .filter((media) => !retainedIds.has(media.id))
+        .map((media) => deleteProfileMedia(media.id))
+    )
+    await Promise.all(
+      syncedStories
+        .filter((story) => retainedIds.has(story.id))
+        .map((story, position) =>
+          updateProfileMedia(story.id, {
+            position,
+            isBlurred: Boolean(story.isBlurred),
+            visibility: "public",
+          })
+        )
+    )
+    await reorderProfileMedia(
+      profileId,
+      syncedStories
+        .filter((story) => retainedIds.has(story.id))
+        .map((story, position) => ({ id: story.id, position }))
+    )
+
+    return syncedStories
+  } catch (error) {
+    await Promise.allSettled(
+      uploadedIds.map((mediaId) => deleteProfileMedia(mediaId))
+    )
+    throw error
+  }
+}
+
+async function syncRemoteVoice(
+  profileId: string,
+  voiceUrl: string | undefined,
+  remoteMedia: Array<ProfileMediaRecord & { url: string }>
+) {
+  const remoteAudio = remoteMedia.filter((media) => media.media_type === "audio")
+  const existingId = getRemoteMediaId(voiceUrl)
+  const existing = existingId
+    ? remoteAudio.find((media) => media.id === existingId)
+    : undefined
+
+  if (existing) {
+    await Promise.all(
+      remoteAudio
+        .filter((media) => media.id !== existing.id)
+        .map((media) => deleteProfileMedia(media.id))
+    )
+    return existing.url
+  }
+
+  if (!voiceUrl) {
+    await Promise.all(remoteAudio.map((media) => deleteProfileMedia(media.id)))
+    return undefined
+  }
+
+  if (!voiceUrl.startsWith("data:") && !voiceUrl.startsWith("blob:")) {
+    return voiceUrl
+  }
+
+  const file = await dataUrlToFile(voiceUrl, "audio-perfil")
+  const uploaded = await uploadProfileMedia({
+    file,
+    profileId,
+    mediaType: "audio",
+    visibility: "public",
+  })
+  await Promise.all(
+    remoteAudio.map((media) => deleteProfileMedia(media.id))
+  )
+  return uploaded.url
+}
+
+export async function syncRemoteProfileMedia(
+  profileId: string,
+  profile: ModelProfile,
+  options: { preserveExisting?: boolean } = {}
+) {
+  await requireRemoteMediaReady()
+  const remoteMedia = await listProfileMedia(profileId)
+  const existingPhotos = options.preserveExisting
+    ? remoteMedia
+        .filter((media) => media.media_type === "photo")
+        .map((media) => ({
+          id: media.id,
+          url: media.url,
+          isBlurred: media.is_blurred,
+        }))
+    : []
+  const profilePhotos = profile.photoItems || []
+  const profilePhotoIds = new Set(profilePhotos.map((photo) => photo.id))
+  const photoItems = await syncRemoteProfilePhotosInternal(
+    profileId,
+    options.preserveExisting
+      ? [
+          ...profilePhotos,
+          ...existingPhotos.filter(
+            (photo) => !profilePhotoIds.has(photo.id)
+          ),
+        ]
+      : profilePhotos
+  )
+  const existingStories = options.preserveExisting
+    ? remoteMedia
+        .filter((media) => media.media_type === "story")
+        .map((media) => ({
+          id: media.id,
+          mediaUrl: media.url,
+          mediaType: media.mime_type.startsWith("video/")
+            ? ("video" as const)
+            : ("image" as const),
+          duration: 5,
+          createdAt: media.created_at,
+          isBlurred: media.is_blurred,
+        }))
+    : []
+  const profileStories = profile.stories || []
+  const profileStoryIds = new Set(profileStories.map((story) => story.id))
+  const stories = await syncRemoteStories(
+    profileId,
+    options.preserveExisting
+      ? [
+          ...profileStories,
+          ...existingStories.filter(
+            (story) => !profileStoryIds.has(story.id)
+          ),
+        ]
+      : profileStories,
+    remoteMedia
+  )
+  const voiceUrl = await syncRemoteVoice(
+    profileId,
+    profile.voiceUrl ||
+      (options.preserveExisting
+        ? remoteMedia.find((media) => media.media_type === "audio")?.url
+        : undefined),
+    remoteMedia
+  )
+
+  return {
+    ...profile,
+    photoItems,
+    photos: photoItems.map((photo) => photo.url),
+    coverImage: photoItems[0]?.url,
+    stories,
+    voiceUrl,
+  }
 }
 
 async function syncRemoteProfilePhotosInternal(

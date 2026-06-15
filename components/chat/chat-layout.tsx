@@ -21,6 +21,15 @@ import { getOrCreateKeyPair } from "@/lib/crypto";
 import { upsertUserPublicKey } from "@/lib/db/messages";
 import { getOrCreateConversationId } from "@/lib/db/chat";
 
+type RealtimeMessageRow = {
+  id: string;
+  sender_id: string;
+  content: string | null;
+  encrypted_data: string | null;
+  created_at: string;
+  is_read: boolean;
+};
+
 export default function ChatLayout({ mode = "full" }: { mode?: "full" | "floating" }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -249,8 +258,8 @@ export default function ChatLayout({ mode = "full" }: { mode?: "full" | "floatin
         .on(
           "postgres_changes",
           { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${conversationId}` },
-          (payload) => {
-            const row = payload.new as any;
+          (payload: { new: RealtimeMessageRow }) => {
+            const row = payload.new;
             const nextMessage: Message = {
               id: row.id,
               senderId: row.sender_id,

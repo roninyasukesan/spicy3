@@ -6,6 +6,7 @@ import { fetchFavoritesDb, toggleFavoriteDb } from "@/lib/db/favorites";
 import { supabase } from "@/lib/supabase";
 import { localGetUser } from "@/lib/local-auth";
 import { useToast } from "@/hooks/use-toast";
+import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 
 // Key for localStorage
 const FAVORITES_KEY = "spicy_favorites";
@@ -84,14 +85,18 @@ export function useFavorites() {
 
     // Initial check
     if (hasSupabaseConfig()) {
-      supabase.auth.getSession().then(({ data }) => {
-        if (mounted) loadData(data.session?.user?.id || null);
-      });
+      supabase.auth.getSession().then(
+        ({ data }: { data: { session: Session | null } }) => {
+          if (mounted) loadData(data.session?.user?.id || null);
+        }
+      );
 
       // Listen for auth changes
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-        if (mounted) loadData(session?.user?.id || null);
-      });
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        (_event: AuthChangeEvent, session: Session | null) => {
+          if (mounted) loadData(session?.user?.id || null);
+        }
+      );
 
       return () => {
         mounted = false;
@@ -110,17 +115,18 @@ export function useFavorites() {
     const handleLocalUpdate = () => {
       setFavorites(getLocalFavorites());
     };
-
-    window.addEventListener(FAVORITES_UPDATED_EVENT, handleLocalUpdate);
-    window.addEventListener("storage", (e) => {
-      if (e.key === FAVORITES_KEY) {
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === FAVORITES_KEY) {
         handleLocalUpdate();
       }
-    });
+    };
+
+    window.addEventListener(FAVORITES_UPDATED_EVENT, handleLocalUpdate);
+    window.addEventListener("storage", handleStorage);
 
     return () => {
       window.removeEventListener(FAVORITES_UPDATED_EVENT, handleLocalUpdate);
-      window.removeEventListener("storage", handleLocalUpdate);
+      window.removeEventListener("storage", handleStorage);
     };
   }, [isDbMode]);
 

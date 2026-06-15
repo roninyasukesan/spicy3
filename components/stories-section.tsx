@@ -104,7 +104,7 @@ export function StoriesSection() {
             </div>
           )})}
           
-          {profilesWithStories.length === 0 && !user?.role === "modelo" && (
+          {profilesWithStories.length === 0 && user?.role !== "modelo" && (
              <div className="text-gray-500 text-sm py-4 italic">Nenhum story recente disponível.</div>
           )}
         </div>

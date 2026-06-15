@@ -44,10 +44,7 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
   const profileSlugFromUrl = searchParams.get("perfil");
 
   const loadProfiles = useCallback(async () => {
-    const localProfiles = getAllLocalProfiles();
-    const profileSources: Array<ModelProfile & { email: string }> = [
-      ...localProfiles,
-    ];
+    const profileSources: Array<ModelProfile & { email: string }> = [];
 
     if (isRemoteDataEnabled()) {
       try {
@@ -64,6 +61,8 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
       } catch (error) {
         console.error("Não foi possível carregar os perfis publicados:", error);
       }
+    } else {
+      profileSources.push(...getAllLocalProfiles());
     }
 
     const uniqueProfiles = Array.from(

@@ -87,7 +87,7 @@ OAuth credentials to the deployed Next.js application.
 The application creates one child folder per profile and never makes protected
 files publicly shareable.
 
-## 3. Enable the first flow
+## 3. Enable and migrate local data
 
 Keep remote media disabled until the migration and credentials are available:
 
@@ -120,6 +120,23 @@ stores the files in Drive and creates the matching `profile_media` rows.
 When either flow is disabled, the interface explicitly reports local-only
 storage instead of claiming that the data is visible to every user.
 
+To migrate profiles and media already stored in LocalStorage:
+
+1. Start the application on the same origin and port where the local data was
+   created. Browser storage is isolated by origin, including the port.
+2. Enable both remote flags and restart the Next.js server.
+3. Sign in with a Supabase administrator account.
+4. Confirm `GET /api/media/health` returns `200` and `ready: true`.
+5. Open `Dashboard > Sistema` and run `Migrar para Supabase e Drive`.
+6. Review the per-profile report and run the migration again. The second run
+   must show no pending local media.
+
+Profiles are matched by normalized email. Existing remote files with the same
+media type, MIME type and byte size are reused, which makes interrupted runs
+safe to resume. Before LocalStorage is updated with remote URLs, the original
+profile, including Base64 photos and videos, is preserved in the browser's
+IndexedDB database `spicy-local-migration-backups`.
+
 ## 4. API routes
 
 - `GET /api/media?profileId=<uuid>` lists media visible to the requester.
@@ -129,6 +146,8 @@ storage instead of claiming that the data is visible to every user.
 - `DELETE /api/media/<id>` deletes the Drive file and database row.
 - `PATCH /api/media/reorder` persists ordering.
 - `GET /api/media/health` validates Supabase and Google Drive readiness.
+- `GET /api/auth/me` returns the authenticated application actor and role.
+- `PATCH /api/admin/users/<id>` updates a managed client's plan.
 
 Mutating requests require a valid Supabase session. The API accepts the SSR
 cookie session and a Bearer access token during the migration period.
@@ -142,16 +161,19 @@ Implemented:
 - Google Drive client with service account and OAuth refresh-token support.
 - Media migration and RLS.
 - Upload, listing, streaming, update, delete and reorder routes.
-- Remote photo upload from the model dashboard.
-- Remote photo loading in the public profile.
+- Remote photos, image/video stories and profile audio in dashboards and
+  public profiles.
 - Admin account creation and deletion through Supabase Admin Auth.
+- Admin plan updates through Supabase Admin Auth and profile metadata.
 - Profile field persistence through authenticated server routes.
 - Random public UUIDs that do not expose model email addresses.
+- LocalStorage profile and media migration with local IndexedDB backup,
+  resumable matching and per-profile error reporting.
 - End-to-end OAuth Drive validation: health check, upload, metadata row,
   authenticated stream and deletion.
 
 Still pending:
 
-- Remote stories, videos and audio in the dashboards.
-- Remote delete, blur, cover and reorder controls in dashboard UI.
-- Import of existing LocalAuth/Base64 data.
+- A dedicated UI for restoring or downloading the IndexedDB migration backup.
+- Background/resumable uploads for individual files larger than the current
+  request timeout.

@@ -401,6 +401,19 @@ export function getUsers(): DemoUser[] {
   }
 }
 
+export function getPersistedLocalUsers(): DemoUser[] {
+  if (typeof window === "undefined") return []
+
+  try {
+    const raw = window.localStorage.getItem(USERS_STORAGE_KEY)
+    if (!raw) return []
+    const users = JSON.parse(raw)
+    return Array.isArray(users) ? (users as DemoUser[]) : []
+  } catch {
+    return []
+  }
+}
+
 export function addUser(user: DemoUser) {
   if (typeof window === "undefined") return []
 
@@ -618,6 +631,12 @@ export function localGetUser(): LocalUser | null {
   } catch {
     return null
   }
+}
+
+export function cacheAuthenticatedUser(user: LocalUser) {
+  if (typeof window === "undefined") return
+  safeSetItem(STORAGE_KEY, JSON.stringify(user))
+  window.dispatchEvent(new Event("spicy-auth-change"))
 }
 
 export function localSignOut() {
@@ -1082,6 +1101,29 @@ export function getAllLocalProfiles(): (ModelProfile & { email: string })[] {
   }
 
   return Object.values(profilesMap).map((profile) => normalizeModelProfile(profile))
+}
+
+export function getPersistedLocalProfiles(): Array<
+  ModelProfile & { email: string }
+> {
+  if (typeof window === "undefined") return []
+
+  try {
+    const raw = window.localStorage.getItem(MODEL_PROFILE_KEY)
+    if (!raw) return []
+    const profiles = JSON.parse(raw) as Record<string, ModelProfile>
+
+    return Object.entries(profiles)
+      .filter(([, profile]) => profile && typeof profile === "object")
+      .map(([email, profile]) =>
+        normalizeModelProfile({
+          ...profile,
+          email: resolveMockEmail(email),
+        })
+      )
+  } catch {
+    return []
+  }
 }
 
 export function exportAllLocalData() {

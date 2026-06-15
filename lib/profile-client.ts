@@ -17,6 +17,7 @@ export type PublishedProfile = {
   characteristics: ModelProfile["characteristics"]
   photoItems: ModelPhoto[]
   stories: Story[]
+  voiceUrl?: string
 }
 
 export function isRemoteDataEnabled() {
@@ -101,6 +102,21 @@ export async function deleteRemoteUser(userId: string) {
   const response = await authorizedFetch(
     `/api/admin/users/${encodeURIComponent(userId)}`,
     { method: "DELETE" }
+  )
+  await readPayload(response)
+}
+
+export async function updateRemoteUserPlan(
+  userId: string,
+  plan: "free" | "vip"
+) {
+  const response = await authorizedFetch(
+    `/api/admin/users/${encodeURIComponent(userId)}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ plan }),
+    }
   )
   await readPayload(response)
 }

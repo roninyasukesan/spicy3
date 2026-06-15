@@ -25,6 +25,10 @@ function applicationRole(role: string) {
   return role
 }
 
+function databasePlan(plan: "free" | "vip") {
+  return plan === "vip" ? "gold" : "free"
+}
+
 export async function GET(request: NextRequest) {
   try {
     const actor = await getMediaActor(request)
@@ -102,6 +106,7 @@ export async function POST(request: NextRequest) {
 
     const input = parsed.data
     const role = databaseRole(input.role)
+    const planTier = databasePlan(input.plan || "free")
     const admin = getSupabaseAdminClient()
     const { data: authData, error: authError } =
       await admin.auth.admin.createUser({
@@ -110,7 +115,7 @@ export async function POST(request: NextRequest) {
         email_confirm: true,
         app_metadata: {
           role,
-          plan_tier: input.plan || "free",
+          plan_tier: planTier,
         },
         user_metadata: {
           display_name: input.name,
@@ -131,7 +136,7 @@ export async function POST(request: NextRequest) {
         role,
         name: input.name,
         display_name: input.name,
-        plan_tier: input.plan || "free",
+        plan_tier: planTier,
       })
       .select("public_id")
       .single()
@@ -145,7 +150,7 @@ export async function POST(request: NextRequest) {
           publicProfileId:
             input.role === "modelo" ? String(profile.public_id) : undefined,
           email: input.email.toLowerCase(),
-          password: input.password,
+          password: "",
           role: input.role,
           name: input.name,
           plan: input.role === "cliente" ? input.plan || "free" : undefined,

@@ -75,7 +75,7 @@ export function ProfileCard({ profile, isLoggedIn, onDetailsClick, onStoryClick 
         .on(
           "postgres_changes",
           { event: "INSERT", schema: "public", table: "favorites", filter: `model_id=eq.${profile.id}` },
-          (payload) => {
+          () => {
             const user = localGetUser();
             if (user?.role === "modelo") {
               toast({
@@ -88,7 +88,7 @@ export function ProfileCard({ profile, isLoggedIn, onDetailsClick, onStoryClick 
         .on(
           "postgres_changes",
           { event: "DELETE", schema: "public", table: "favorites", filter: `model_id=eq.${profile.id}` },
-          (payload) => {
+          () => {
             const user = localGetUser();
             if (user?.role === "modelo") {
               toast({

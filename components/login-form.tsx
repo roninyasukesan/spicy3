@@ -14,7 +14,11 @@ import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { localSignIn } from "@/lib/local-auth";
+import {
+  cacheAuthenticatedUser,
+  localSignIn,
+  type LocalUser,
+} from "@/lib/local-auth";
 import { isRemoteDataEnabled } from "@/lib/profile-client";
 
 type LoginFormProps = {
@@ -33,7 +37,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
     setLoading(true);
 
     try {
-      let loggedUser: any = null;
+      let loggedUser: LocalUser | null = null;
 
       // 1. Try Supabase Auth first
       if (isRemoteDataEnabled()) {
@@ -45,34 +49,17 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
         if (error) throw error;
 
         if (data.user) {
-          // Fetch profile for role
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('role, display_name')
-            .eq('id', data.user.id)
-            .single();
-          
-          const databaseRole = profile?.role || "client";
-          loggedUser = {
-            id: data.user.id,
-            email: data.user.email!,
-            role:
-              databaseRole === "model"
-                ? "modelo"
-                : databaseRole === "client"
-                  ? "cliente"
-                  : databaseRole,
-            name: profile?.display_name || data.user.email?.split('@')[0] || 'Usuário',
-          };
-
-          // Sync to localStorage for compatibility with local-auth
-          if (typeof window !== 'undefined') {
-            try {
-              localStorage.setItem("spicy-auth-user", JSON.stringify(loggedUser));
-            } catch (e) {
-              console.error("Failed to save auth user to localStorage:", e);
-            }
+          const response = await fetch("/api/auth/me", { cache: "no-store" });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok || !payload.user) {
+            await supabase.auth.signOut();
+            throw new Error(
+              payload.error || "Não foi possível validar o perfil desta conta."
+            );
           }
+
+          loggedUser = payload.user as LocalUser;
+          cacheAuthenticatedUser(loggedUser);
         }
       }
 

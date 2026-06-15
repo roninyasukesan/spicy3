@@ -10,6 +10,12 @@ export type MediaActor = {
   user: User
   role: string
   planTier: string
+  profile: {
+    id: string
+    publicId?: string
+    email: string
+    displayName: string
+  }
 }
 
 function getBearerToken(request: NextRequest) {
@@ -39,35 +45,64 @@ export async function getRequestUser(request: NextRequest) {
   return error ? null : data.user
 }
 
-export async function getMediaActor(
-  request: NextRequest
-): Promise<MediaActor | null> {
-  const user = await getRequestUser(request)
-  if (!user) return null
-
+export async function getActorForUser(user: User): Promise<MediaActor> {
   const fallbackRole = String(user.app_metadata?.role || "")
   const fallbackPlan = String(user.app_metadata?.plan_tier || "free")
+  const fallbackEmail = user.email || ""
+  const fallbackName =
+    String(user.user_metadata?.display_name || user.user_metadata?.full_name || "") ||
+    fallbackEmail.split("@")[0] ||
+    "Usuário"
 
   try {
     const admin = getSupabaseAdminClient()
-    const { data } = await admin
+    const { data, error } = await admin
       .from("profiles")
-      .select("role,plan_tier")
+      .select("id,public_id,email,role,plan_tier,display_name,name")
       .eq("id", user.id)
       .maybeSingle()
+
+    if (error) throw error
 
     return {
       user,
       role: String(data?.role || fallbackRole || "client"),
       planTier: String(data?.plan_tier || fallbackPlan),
+      profile: {
+        id: String(data?.id || user.id),
+        publicId: data?.public_id ? String(data.public_id) : undefined,
+        email: String(data?.email || fallbackEmail),
+        displayName: String(data?.display_name || data?.name || fallbackName),
+      },
     }
   } catch {
     return {
       user,
       role: fallbackRole || "client",
       planTier: fallbackPlan,
+      profile: {
+        id: user.id,
+        email: fallbackEmail,
+        displayName: fallbackName,
+      },
     }
   }
+}
+
+export async function getAuthenticatedActor() {
+  const supabase = await createServerSupabaseClient()
+  const { data, error } = await supabase.auth.getUser()
+  if (error || !data.user) return null
+  return getActorForUser(data.user)
+}
+
+export async function getMediaActor(
+  request: NextRequest
+): Promise<MediaActor | null> {
+  const user = await getRequestUser(request)
+  if (!user) return null
+
+  return getActorForUser(user)
 }
 
 export async function canManageProfile(actor: MediaActor, profileId: string) {

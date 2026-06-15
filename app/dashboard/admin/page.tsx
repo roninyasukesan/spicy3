@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Header } from "@/components/header";
 import { getProfileSearchPath, type UserRole } from "@/lib/utils";
-import { localGetUser, getHomeContent, setHomeContent, type HomeContent, getUsers, addUser, cacheRemoteUsers, removeUser, removeModelProfile, saveModelProfile, updateUserPlan, type DemoUser, exportAllLocalData, getAllLocalProfiles, type ModelProfile } from "@/lib/local-auth";
+import { localGetUser, getHomeContent, setHomeContent, type HomeContent, getUsers, addUser, removeUser, removeModelProfile, updateUserPlan, type DemoUser, exportAllLocalData, getAllLocalProfiles, type ModelProfile } from "@/lib/local-auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -49,7 +49,9 @@ import {
   fetchPublishedProfiles,
   isRemoteDataEnabled,
   listRemoteUsers,
+  updateRemoteUserPlan,
 } from "@/lib/profile-client";
+import { LocalInfrastructureMigration } from "@/components/admin/local-infrastructure-migration";
 
 export default function AdminDashboardPage() {
   const router = useRouter();
@@ -93,7 +95,7 @@ export default function AdminDashboardPage() {
     }
     const content = getHomeContent();
     setHomeContentState(content);
-    refreshAdminData();
+    if (!isRemoteDataEnabled()) refreshAdminData();
     setRole(user.role);
 
     const loadRemoteData = async () => {
@@ -107,26 +109,28 @@ export default function AdminDashboardPage() {
           listRemoteUsers(),
           fetchPublishedProfiles(),
         ]);
-        const cachedUsers = cacheRemoteUsers(remoteUsers);
         const usersById = new Map(
-          cachedUsers
+          remoteUsers
             .filter((candidate) => candidate.id)
             .map((candidate) => [candidate.id as string, candidate])
         );
 
-        publishedProfiles.forEach((published) => {
+        const remoteModels = publishedProfiles.flatMap((published) => {
           const linkedUser = usersById.get(published.id);
-          if (!linkedUser?.email) return;
-          saveModelProfile(linkedUser.email, {
+          if (!linkedUser?.email) return [];
+          return [{
             ...published,
             phone: "",
             photos: published.photoItems.map((photo) => photo.url),
             coverImage: published.photoItems[0]?.url,
             email: linkedUser.email,
-          });
+          }];
         });
 
-        if (active) refreshAdminData();
+        if (active) {
+          setUsersList(remoteUsers);
+          setAllModels(remoteModels);
+        }
       } catch (error) {
         console.error("Falha ao carregar a gestão remota:", error);
         if (active) {
@@ -149,7 +153,7 @@ export default function AdminDashboardPage() {
     return () => {
       active = false;
     };
-  }, [router]);
+  }, [router, toast]);
 
   const handleSaveHome = () => {
     if (!homeContent) return;
@@ -182,9 +186,44 @@ export default function AdminDashboardPage() {
       const managedUser = isRemoteDataEnabled()
         ? await createRemoteUser(userToCreate)
         : userToCreate;
-      const updatedUsers = addUser(managedUser);
-      setUsersList(updatedUsers);
-      setAllModels(getAllLocalProfiles());
+      if (isRemoteDataEnabled()) {
+        setUsersList((current) => [...current, managedUser]);
+        if (managedUser.role === "modelo") {
+          setAllModels((current) => [
+            ...current,
+            {
+              publicId: managedUser.publicProfileId,
+              artisticName: managedUser.name,
+              phone: "",
+              city: "",
+              age: "",
+              bio: "",
+              services: [],
+              fetishes: [],
+              exclusions: [],
+              priceRange: "",
+              characteristics: {
+                hairColor: "",
+                ethnicity: "",
+                bodyType: "",
+                height: "",
+                age: "",
+                eyes: "",
+                breasts: "",
+                tattoos: "",
+                piercings: "",
+              },
+              photoItems: [],
+              photos: [],
+              stories: [],
+              email: managedUser.email,
+            },
+          ]);
+        }
+      } else {
+        setUsersList(addUser(managedUser));
+        setAllModels(getAllLocalProfiles());
+      }
       setNewUser({ name: "", email: "", password: "", role: "cliente", plan: "free" });
       toast({
         title: "Usuário adicionado",
@@ -235,14 +274,26 @@ export default function AdminDashboardPage() {
         );
       }
 
-      const updatedUsers = removeUser(userPendingRemoval.email);
-      setUsersList(updatedUsers);
-      setAllModels(getAllLocalProfiles());
+      if (isRemoteDataEnabled()) {
+        setUsersList((current) =>
+          current.filter((user) => user.id !== userPendingRemoval.id)
+        );
+        setAllModels((current) =>
+          current.filter(
+            (model) =>
+              model.email.toLowerCase() !==
+              userPendingRemoval.email.toLowerCase()
+          )
+        );
+      } else {
+        setUsersList(removeUser(userPendingRemoval.email));
+        setAllModels(getAllLocalProfiles());
+      }
       toast({
         title: "Usuário removido",
         description:
           isRemoteDataEnabled()
-            ? `${userPendingRemoval.name} foi removido do Supabase e da cópia local.`
+            ? `${userPendingRemoval.name} foi removido do Supabase e suas mídias foram excluídas do Drive.`
             : userPendingRemoval.role === "modelo"
             ? `${userPendingRemoval.name}, sua conta e seu perfil foram excluídos.`
             : `${userPendingRemoval.name} não pode mais acessar a plataforma.`,
@@ -298,10 +349,31 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const handleUpdatePlan = (email: string, plan: "free" | "vip") => {
-    updateUserPlan(email, plan);
-    refreshAdminData();
-    toast({ title: "Plano atualizado com sucesso" });
+  const handleUpdatePlan = async (user: DemoUser, plan: "free" | "vip") => {
+    try {
+      if (isRemoteDataEnabled()) {
+        if (!user.id) throw new Error("Usuário sem identificador do Supabase.");
+        await updateRemoteUserPlan(user.id, plan);
+        setUsersList((current) =>
+          current.map((item) =>
+            item.id === user.id ? { ...item, plan } : item
+          )
+        );
+      } else {
+        updateUserPlan(user.email, plan);
+        refreshAdminData();
+      }
+      toast({ title: "Plano atualizado com sucesso" });
+    } catch (error) {
+      toast({
+        title: "Erro ao atualizar plano",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível atualizar o plano.",
+        variant: "destructive",
+      });
+    }
   };
 
   const getDashboardRouteForRole = (user: DemoUser) => {
@@ -672,7 +744,7 @@ export default function AdminDashboardPage() {
                             {user.role === "cliente" ? (
                               <Select
                                 value={user.plan || "free"}
-                                onValueChange={(value: "free" | "vip") => handleUpdatePlan(user.email, value)}
+                                onValueChange={(value: "free" | "vip") => void handleUpdatePlan(user, value)}
                               >
                                 <SelectTrigger className="bg-dark-800 border-gray-700 text-white h-8">
                                   <SelectValue />
@@ -686,7 +758,9 @@ export default function AdminDashboardPage() {
                               <span className="text-gray-500">—</span>
                             )}
                           </TableCell>
-                          <TableCell className="font-mono text-gray-200">{user.password}</TableCell>
+                          <TableCell className="font-mono text-gray-500">
+                            {isRemoteDataEnabled() ? "Protegida pelo Supabase" : user.password}
+                          </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
                               <Button
@@ -857,7 +931,9 @@ export default function AdminDashboardPage() {
           </TabsContent>
 
           <TabsContent value="sistema">
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className="space-y-6">
+              <LocalInfrastructureMigration />
+              <div className="grid gap-6 md:grid-cols-2">
               <Card className="bg-dark-900 border-gray-800">
                 <CardHeader>
                   <CardTitle className="text-white flex items-center gap-2">
@@ -912,6 +988,7 @@ export default function AdminDashboardPage() {
                   </Button>
                 </CardContent>
               </Card>
+              </div>
             </div>
           </TabsContent>
         </Tabs>

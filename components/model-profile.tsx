@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   isRemoteMediaEnabled,
-  syncRemoteProfilePhotos,
+  syncRemoteProfileMedia,
 } from "@/lib/media-client";
 import {
   isRemoteDataEnabled,
@@ -162,16 +162,6 @@ export function ModelProfile({ profileId }: { profileId: string }) {
         photos: currentPhotoItems.map((photo) => photo.url),
         coverImage: currentPhotoItems[0]?.url,
       };
-      const success = saveModelProfile(model.email, nextProfile);
-
-      if (!success) {
-        throw new Error(
-          isStorageNearLimit
-            ? `O perfil ocupa cerca de ${formatFileSize(estimatedStorageBytes)} e excedeu o espaço local. Remova algumas mídias ou ative o armazenamento remoto.`
-            : "O navegador não conseguiu persistir o perfil. Tente novamente."
-        );
-      }
-
       if (isRemoteDataEnabled()) {
         if (!remoteProfileId) {
           throw new Error(
@@ -179,30 +169,25 @@ export function ModelProfile({ profileId }: { profileId: string }) {
           );
         }
 
-        const published = await saveRemoteProfile(remoteProfileId, nextProfile);
-        nextProfile = {
-          ...nextProfile,
-          publicId: published.publicId,
-        };
-
-        if (isRemoteMediaEnabled()) {
-          const syncedPhotoItems = await syncRemoteProfilePhotos(
-            remoteProfileId,
-            currentPhotoItems
-          );
-          nextProfile = {
-            ...nextProfile,
-            photoItems: syncedPhotoItems,
-            photos: syncedPhotoItems.map((photo) => photo.url),
-            coverImage: syncedPhotoItems[0]?.url,
-          };
-        }
-
-        if (!saveModelProfile(model.email, nextProfile)) {
+        if (!isRemoteMediaEnabled()) {
           throw new Error(
-            "O perfil foi publicado, mas a cópia local não pôde ser atualizada."
+            "O armazenamento remoto de mídia está desativado. Ative o Google Drive antes de salvar."
           );
         }
+
+        nextProfile = await syncRemoteProfileMedia(
+          remoteProfileId,
+          nextProfile
+        );
+        const published = await saveRemoteProfile(remoteProfileId, nextProfile);
+        nextProfile = { ...nextProfile, publicId: published.publicId };
+        saveModelProfile(model.email, nextProfile);
+      } else if (!saveModelProfile(model.email, nextProfile)) {
+        throw new Error(
+          isStorageNearLimit
+            ? `O perfil ocupa cerca de ${formatFileSize(estimatedStorageBytes)} e excedeu o espaço local. Remova algumas mídias ou ative o armazenamento remoto.`
+            : "O navegador não conseguiu persistir o perfil. Tente novamente."
+        );
       }
 
       setModel(nextProfile);
@@ -213,9 +198,7 @@ export function ModelProfile({ profileId }: { profileId: string }) {
       toast({
         title: "Perfil atualizado!",
         description: isRemoteDataEnabled()
-          ? isRemoteMediaEnabled()
-            ? "Perfil e fotos publicados para todos os usuários autorizados."
-            : "Perfil publicado no Supabase. As fotos continuam somente neste navegador."
+          ? "Perfil e mídias publicados no Supabase e Google Drive."
           : "Perfil salvo somente neste navegador. A publicação remota está desativada.",
       });
       saveResetTimerRef.current = setTimeout(() => {
