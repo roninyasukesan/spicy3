@@ -5,13 +5,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MapPin, DollarSign, Heart, Lock } from "lucide-react";
 import { AnimatedText } from "@/components/animated-text";
-import Image from "next/image";
 import { useState, useEffect } from "react";
 import { ModelDetailsModal, Model } from "@/components/model-details-modal";
 import { useFavorites } from "@/lib/favorites";
 import { cn } from "@/lib/utils";
-import { getAllLocalProfiles, localGetUser, subscribeToModelProfileChanges } from "@/lib/local-auth";
+import { localGetUser, subscribeToModelProfileChanges } from "@/lib/local-auth";
 import { getGalleryItemsFromModel, mapLocalProfileToModel } from "@/lib/model-mappers";
+import { loadProfileSources } from "@/lib/profile-client";
+import { MediaFill } from "@/components/ui/media-fill";
 
 export function LandingFeaturedModelsSection() {
   const [selectedModel, setSelectedModel] = useState<Model | null>(null);
@@ -21,9 +22,13 @@ export function LandingFeaturedModelsSection() {
   const currentUser = localGetUser();
 
   useEffect(() => {
-    const loadModels = () => {
-      const localProfiles = getAllLocalProfiles();
-      const mappedModels: Model[] = localProfiles.map((profile) => {
+    let active = true;
+
+    const loadModels = async () => {
+      const profileSources = await loadProfileSources();
+      if (!active) return;
+
+      const mappedModels: Model[] = profileSources.map((profile) => {
         return {
           ...mapLocalProfileToModel(profile),
           rating: 5.0,
@@ -47,7 +52,11 @@ export function LandingFeaturedModelsSection() {
     };
 
     loadModels();
-    return subscribeToModelProfileChanges(loadModels);
+    const unsubscribe = subscribeToModelProfileChanges(loadModels);
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, []);
 
   const handleOpenModal = (model: Model) => {
@@ -82,7 +91,15 @@ export function LandingFeaturedModelsSection() {
               <Card className="bg-dark-900 border-gray-800 text-white rounded-lg overflow-hidden shadow-lg transform hover:-translate-y-2 transition-transform duration-300">
                 <CardContent className="p-0">
                   <div className="relative h-56 sm:h-60 md:h-72 w-full cursor-pointer" onClick={() => handleOpenModal(model)}>
-                    <Image src={coverPhoto?.url || model.imageUrl} alt={model.name} fill sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw" style={{ objectFit: "cover" }} className={cn("h-full w-full", shouldBlurCover && "blur-md")} />
+                    <MediaFill
+                      src={coverPhoto?.url || model.imageUrl}
+                      alt={model.name}
+                      mediaType={coverPhoto?.mediaType}
+                      sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                      className={cn(shouldBlurCover && "blur-md")}
+                      autoPlay={coverPhoto?.mediaType === "video"}
+                      loop={coverPhoto?.mediaType === "video"}
+                    />
                     {shouldBlurCover && (
                       <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/45">
                         <Lock className="h-8 w-8 text-white/80" />

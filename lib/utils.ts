@@ -40,6 +40,33 @@ export function getProfileSearchPath(name: string, uniqueId: string): string {
   return `/busca?perfil=${encodeURIComponent(getPublicProfileSlug(name, uniqueId))}`
 }
 
+type ProfileReference = {
+  id: string
+  name: string
+  publicId?: string
+}
+
+export function matchesProfileReference(
+  profile: ProfileReference,
+  reference: string | null | undefined
+): boolean {
+  if (!reference) return false
+
+  const normalizedReference = reference.trim().toLowerCase()
+  if (!normalizedReference) return false
+
+  const candidates = [
+    profile.id,
+    profile.publicId,
+    getPublicProfileSlug(profile.name, profile.publicId || profile.id),
+    getPublicProfileSlug(profile.name, profile.id),
+  ]
+    .filter((value): value is string => Boolean(value))
+    .map((value) => value.trim().toLowerCase())
+
+  return candidates.includes(normalizedReference)
+}
+
 export type UserRole = "admin" | "modelo" | "cliente"
 
 export function getRoleByEmail(email: string | null | undefined): UserRole {

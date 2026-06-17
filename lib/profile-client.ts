@@ -1,6 +1,12 @@
 "use client"
 
-import type { DemoUser, ModelPhoto, ModelProfile, Story } from "@/lib/local-auth"
+import {
+  getAllLocalProfiles,
+  type DemoUser,
+  type ModelPhoto,
+  type ModelProfile,
+  type Story,
+} from "@/lib/local-auth"
 import { supabase } from "@/lib/supabase"
 
 export type PublishedProfile = {
@@ -22,6 +28,76 @@ export type PublishedProfile = {
 
 export function isRemoteDataEnabled() {
   return process.env.NEXT_PUBLIC_REMOTE_DATA_ENABLED === "true"
+}
+
+export type ProfileSource = ModelProfile & { email: string }
+
+function normalizeCharacteristics(
+  value?: Partial<ModelProfile["characteristics"]> & { ageRange?: string }
+): ModelProfile["characteristics"] {
+  return {
+    hairColor: value?.hairColor || "",
+    ethnicity: value?.ethnicity || "",
+    bodyType: value?.bodyType || "",
+    height: value?.height || "",
+    age: value?.age || value?.ageRange || "",
+    eyes: value?.eyes || "",
+    breasts: value?.breasts || "",
+    tattoos: value?.tattoos || "",
+    piercings: value?.piercings || "",
+  }
+}
+
+export function mapPublishedProfileToSource(
+  published: PublishedProfile
+): ProfileSource {
+  return {
+    publicId: published.publicId,
+    artisticName: published.artisticName,
+    phone: "",
+    city: published.city,
+    age: published.age,
+    bio: published.bio,
+    services: published.services,
+    fetishes: published.fetishes,
+    exclusions: published.exclusions,
+    priceRange: published.priceRange,
+    characteristics: normalizeCharacteristics(published.characteristics),
+    photos: published.photoItems.map((photo) => photo.url),
+    photoItems: published.photoItems,
+    coverImage: published.photoItems[0]?.url,
+    voiceUrl: published.voiceUrl,
+    email: published.id,
+    stories: published.stories,
+  }
+}
+
+export function dedupeProfileSources(
+  profileSources: ProfileSource[]
+): ProfileSource[] {
+  return Array.from(
+    new Map(
+      profileSources.map((candidate) => [
+        candidate.publicId || candidate.email,
+        candidate,
+      ])
+    ).values()
+  )
+}
+
+export async function loadProfileSources(): Promise<ProfileSource[]> {
+  if (isRemoteDataEnabled()) {
+    try {
+      const publishedProfiles = await fetchPublishedProfiles()
+      return dedupeProfileSources(
+        publishedProfiles.map(mapPublishedProfileToSource)
+      )
+    } catch (error) {
+      console.error("Failed to load published profiles, using local cache:", error)
+    }
+  }
+
+  return dedupeProfileSources(getAllLocalProfiles())
 }
 
 async function authorizedFetch(input: RequestInfo | URL, init: RequestInit = {}) {

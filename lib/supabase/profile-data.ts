@@ -109,7 +109,10 @@ export function serializePublishedProfile(
 
   return {
     id: String(row.id),
-    publicId: String(row.public_id),
+    publicId:
+      typeof row.public_id === "string" && String(row.public_id).trim()
+        ? String(row.public_id)
+        : undefined,
     artisticName: String(row.display_name || row.name || "Perfil"),
     city: String(row.city || ""),
     age: row.age == null ? "" : String(row.age),

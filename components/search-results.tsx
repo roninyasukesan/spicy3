@@ -9,19 +9,16 @@ import { useState, useEffect, useCallback } from "react";
 import { ModelDetailsModal, Model } from "@/components/model-details-modal";
 import { SearchFiltersState } from "@/app/busca/page";
 import { PhysicalCharacteristics } from "@/lib/physical-characteristics";
-import { getAllLocalProfiles, subscribeToModelProfileChanges, type ModelProfile } from "@/lib/local-auth";
+import { subscribeToModelProfileChanges } from "@/lib/local-auth";
 import { StoryViewer } from "@/components/story-viewer";
-import { cn, getPublicProfileSlug } from "@/lib/utils";
+import { cn, getPublicProfileSlug, matchesProfileReference } from "@/lib/utils";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Slider } from "@/components/ui/slider"
 import { SearchFilters } from "@/components/search-filters"
 import { locations } from "@/lib/brazil-locations";
 import { getGalleryItemsFromModel, mapLocalProfileToModel } from "@/lib/model-mappers";
-import {
-  fetchPublishedProfiles,
-  isRemoteDataEnabled,
-} from "@/lib/profile-client";
+import { loadProfileSources } from "@/lib/profile-client";
 import { MediaFill } from "@/components/ui/media-fill";
 
 interface SearchResultsProps {
@@ -44,35 +41,7 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
   const profileSlugFromUrl = searchParams.get("perfil");
 
   const loadProfiles = useCallback(async () => {
-    const profileSources: Array<ModelProfile & { email: string }> = [];
-
-    if (isRemoteDataEnabled()) {
-      try {
-        const publishedProfiles = await fetchPublishedProfiles();
-        publishedProfiles.forEach((published) => {
-          profileSources.push({
-            ...published,
-            email: published.id,
-            phone: "",
-            photos: published.photoItems.map((photo) => photo.url),
-            coverImage: published.photoItems[0]?.url,
-          });
-        });
-      } catch (error) {
-        console.error("Não foi possível carregar os perfis publicados:", error);
-      }
-    } else {
-      profileSources.push(...getAllLocalProfiles());
-    }
-
-    const uniqueProfiles = Array.from(
-      new Map(
-        profileSources.map((candidate) => [
-          candidate.publicId || candidate.email,
-          candidate,
-        ])
-      ).values()
-    );
+    const uniqueProfiles = await loadProfileSources();
     const mapped: Model[] = uniqueProfiles.map((p) => {
       const baseModel = mapLocalProfileToModel(p);
 
@@ -132,15 +101,12 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
   useEffect(() => {
     if ((modelIdFromUrl || profileSlugFromUrl) && profiles.length > 0) {
       const model = profiles.find((p) => {
-        if (modelIdFromUrl && p.id === modelIdFromUrl) {
+        if (modelIdFromUrl && matchesProfileReference(p, modelIdFromUrl)) {
           return true;
         }
 
         if (profileSlugFromUrl) {
-          if (p.publicId === profileSlugFromUrl || p.id === profileSlugFromUrl) {
-            return true;
-          }
-          return getPublicProfileSlug(p.name, p.id) === profileSlugFromUrl;
+          return matchesProfileReference(p, profileSlugFromUrl);
         }
 
         return false;
@@ -148,6 +114,9 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
       if (model) {
         setSelectedModel(model);
         setIsModalOpen(true);
+      } else {
+        setSelectedModel(null);
+        setIsModalOpen(false);
       }
       return;
     }
@@ -345,8 +314,8 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
     router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
   };
 
-  const handleOpenStoriesPage = (profileId: string) => {
-    router.push(`/stories?id=${encodeURIComponent(profileId)}`);
+  const handleOpenStoriesPage = (profile: Model) => {
+    router.push(`/stories?id=${encodeURIComponent(profile.publicId || profile.id)}`);
   };
 
   return (
@@ -360,7 +329,7 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
           <div 
             key={profile.id} 
             className="flex flex-col items-center gap-2 flex-shrink-0 cursor-pointer group"
-            onClick={() => handleOpenStoriesPage(profile.id)}
+            onClick={() => handleOpenStoriesPage(profile)}
           >
             <div className="relative w-16 h-16 sm:w-20 sm:h-20 p-[2px] rounded-full bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-500">
               <div className="w-full h-full rounded-full border-2 border-dark-950 overflow-hidden relative">
@@ -523,7 +492,7 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
                            className="bg-pink-500/80 hover:bg-pink-500 text-white rounded-full px-4"
                            onClick={(e: React.MouseEvent) => {
                              e.stopPropagation();
-                             handleOpenStoriesPage(profile.id);
+                             handleOpenStoriesPage(profile);
                            }}
                          >
                            <PlayCircle className="w-4 h-4 mr-2" />
@@ -637,3 +606,4 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
     </div>
   );
 }
+
