@@ -1,6 +1,6 @@
 # Supabase + Google Drive Media Setup
 
-This document configures the first remote media flow:
+This document configures the remote data and media flow:
 
 `model dashboard -> Next.js API -> Google Drive -> Supabase metadata -> public profile`
 
@@ -29,6 +29,12 @@ The migration creates `profile_media`, indexes, cover constraints and RLS
 policies. Ownership checks support both profile layouts currently present in
 the repository: `profiles.id = auth.users.id` and
 `profiles.user_id = auth.users.id`.
+
+The migrations also contain explicit `GRANT` statements. This is intentional:
+RLS controls which rows can be accessed, while SQL privileges control whether
+the Data API can access the table at all. Supabase announced that automatic
+Data API exposure is being removed progressively during 2026, so new tables
+must not rely on implicit grants.
 
 Never expose `SUPABASE_SECRET_KEY` or `SUPABASE_SERVICE_ROLE_KEY` through a
 `NEXT_PUBLIC_*` variable.
@@ -137,7 +143,24 @@ safe to resume. Before LocalStorage is updated with remote URLs, the original
 profile, including Base64 photos and videos, is preserved in the browser's
 IndexedDB database `spicy-local-migration-backups`.
 
-## 4. API routes
+### Migration executed
+
+The production-like migration validation was completed on June 14, 2026:
+
+- Laura: 8 photos and 5 image stories.
+- Nicole: 2 photos and 3 image stories.
+- Total: 18 files migrated and streamed successfully.
+- No recoverable local videos were present; video migration support remains
+  implemented.
+- A second run migrated zero files and preserved the existing remote data.
+- Local originals remain available in the IndexedDB backup.
+
+## 4. Authentication and API routes
+
+The SSR Proxy refreshes the cookie session with
+`supabase.auth.getClaims()`. Server-side route protection must not use
+`getSession()` as an authorization decision because the session payload is not
+guaranteed to be revalidated.
 
 - `GET /api/media?profileId=<uuid>` lists media visible to the requester.
 - `POST /api/media` uploads a file.
@@ -171,9 +194,16 @@ Implemented:
   resumable matching and per-profile error reporting.
 - End-to-end OAuth Drive validation: health check, upload, metadata row,
   authenticated stream and deletion.
+- Real LocalStorage migration validation with 18 files and an idempotent rerun.
 
 Still pending:
 
 - A dedicated UI for restoring or downloading the IndexedDB migration backup.
 - Background/resumable uploads for individual files larger than the current
   request timeout.
+
+## 6. References
+
+- [Remote infrastructure migration](REMOTE-INFRASTRUCTURE-MIGRATION.md)
+- [Supabase SSR client documentation](https://supabase.com/docs/guides/auth/server-side/creating-a-client)
+- [Supabase 2026 Data API grants change](https://supabase.com/changelog)

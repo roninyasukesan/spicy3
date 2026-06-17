@@ -59,6 +59,7 @@ const profileSchema = z.object({
         id: z.string(),
         url: z.string(),
         isBlurred: z.boolean().optional(),
+        mediaType: z.enum(["image", "video"]).optional(),
       })
     )
     .optional(),

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Header } from "@/components/header";
 import { getProfileSearchPath, type UserRole } from "@/lib/utils";
 import { localGetUser, getHomeContent, setHomeContent, type HomeContent, getUsers, addUser, removeUser, removeModelProfile, updateUserPlan, type DemoUser, exportAllLocalData, getAllLocalProfiles, type ModelProfile } from "@/lib/local-auth";
@@ -53,8 +53,24 @@ import {
 } from "@/lib/profile-client";
 import { LocalInfrastructureMigration } from "@/components/admin/local-infrastructure-migration";
 
+const ADMIN_TABS = [
+  "editor",
+  "usuarios",
+  "pagamentos",
+  "modelos",
+  "suporte",
+  "sistema",
+] as const;
+
+type AdminTab = (typeof ADMIN_TABS)[number];
+
+function getAdminTab(value: string | null): AdminTab {
+  return ADMIN_TABS.includes(value as AdminTab) ? (value as AdminTab) : "editor";
+}
+
 export default function AdminDashboardPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<UserRole | null>(null);
@@ -459,6 +475,17 @@ export default function AdminDashboardPage() {
   const clientCount = usersList.filter((user) => user.role === "cliente").length;
   const totalPhotos = allModels.reduce((sum, model) => sum + (model.photoItems?.length || model.photos?.length || 0), 0);
   const totalStories = allModels.reduce((sum, model) => sum + (model.stories?.length || 0), 0);
+  const activeTab = getAdminTab(searchParams.get("tab"));
+
+  const handleTabChange = (value: string) => {
+    const nextTab = getAdminTab(value);
+    router.replace(
+      nextTab === "editor"
+        ? "/dashboard/admin"
+        : `/dashboard/admin?tab=${nextTab}`,
+      { scroll: false }
+    );
+  };
 
   return (
     <div className="min-h-screen bg-dark-950">
@@ -533,7 +560,7 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        <Tabs defaultValue="editor" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
           <TabsList className="flex flex-wrap gap-2 overflow-x-auto">
             <TabsTrigger value="editor">Editor visual</TabsTrigger>
             <TabsTrigger value="usuarios">Usuários</TabsTrigger>
@@ -853,7 +880,7 @@ export default function AdminDashboardPage() {
                         <TableHead className="text-gray-300">Nome Artístico</TableHead>
                         <TableHead className="text-gray-300">E-mail</TableHead>
                         <TableHead className="text-gray-300">Cidade</TableHead>
-                        <TableHead className="text-gray-300">Fotos</TableHead>
+                        <TableHead className="text-gray-300">Galeria</TableHead>
                         <TableHead className="text-gray-300">Stories</TableHead>
                         <TableHead className="text-gray-300 text-right">Ações</TableHead>
                       </TableRow>
@@ -866,7 +893,7 @@ export default function AdminDashboardPage() {
                           <TableCell className="text-gray-400">{model.city}</TableCell>
                           <TableCell className="text-gray-400">
                             <Badge variant="outline" className="border-gray-700 text-gray-300">
-                              {(model.photoItems?.length || model.photos?.length || 0)} fotos
+                              {(model.photoItems?.length || model.photos?.length || 0)} mídias
                             </Badge>
                           </TableCell>
                           <TableCell className="text-gray-400">

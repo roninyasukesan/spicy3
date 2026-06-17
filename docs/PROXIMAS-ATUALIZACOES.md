@@ -5,6 +5,41 @@
 
 ---
 
+## Atualização de Status - 15/06/2026
+
+Este arquivo preserva o planejamento elaborado em 10/06/2026. O estado atual
+dos itens P0 mudou após o commit
+`0624fe4 feat: complete remote infrastructure migration`.
+
+### Concluído
+
+- [x] Proteção dos dashboards por papel nos modos local e remoto.
+- [x] Sessão SSR do Supabase com validação por `getClaims()`.
+- [x] Contrato `GET /api/auth/me` para sincronizar sessão e UI.
+- [x] Modos local/remoto controlados por flags explícitas.
+- [x] Perfis e usuários remotos no Supabase.
+- [x] Fotos, stories de imagem/vídeo e áudio no Google Drive.
+- [x] Streaming autorizado por `/api/media/[id]`.
+- [x] CRUD administrativo de usuários e alteração de plano.
+- [x] Migração do LocalStorage com backup no IndexedDB e reexecução idempotente.
+- [x] Migração real de 18 mídias pertencentes a Laura e Nicole.
+
+### Permanece pendente
+
+- [ ] Limite anti-spam por plano no chat.
+- [ ] Auditoria administrativa persistente.
+- [ ] Rate limiting nas rotas críticas.
+- [ ] UI para exportar ou restaurar o backup do IndexedDB.
+- [ ] Upload em partes ou fila para arquivos grandes.
+- [ ] Observabilidade, moderação e monetização real.
+
+A descrição técnica atual está em
+[`REMOTE-INFRASTRUCTURE-MIGRATION.md`](REMOTE-INFRASTRUCTURE-MIGRATION.md).
+A seção P0 #4 abaixo deve ser lida como histórico da proposta original, não
+como trabalho ainda não iniciado.
+
+---
+
 ## 🎯 Resumo Executivo
 
 Após revisão completa dos arquivos de documentação (`mvp-roadmap.md`, `mvp-change-requests.md`, `mvp-test-report.md`, `ARCHITECTURE.md`, `DATABASE_SCHEMA.md`, `DOCUMENTATION_MODIFICATIONS.md`, `FIXES_APPLIED.md`), identificamos o estado atual do projeto e definimos as próximas ações prioritárias para atingir um MVP funcional e competitivo.

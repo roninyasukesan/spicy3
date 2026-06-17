@@ -17,15 +17,16 @@ import {
   Eye,
   Camera,
   Phone,
+  Video,
 } from "lucide-react"
 import { fetchProfileById } from "@/lib/db/profiles"
-import Image from "next/image"
 import { localGetUser, subscribeToModelProfileChanges } from "@/lib/local-auth"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { LoginForm } from "@/components/login-form"
 import { SubscriptionModal } from "@/components/subscription-modal"
 import { cn } from "@/lib/utils"
 import { getGalleryItemsFromModel } from "@/lib/model-mappers"
+import { MediaFill } from "@/components/ui/media-fill"
 
 interface ProfileDetailsProps {
   profileId: string
@@ -130,6 +131,23 @@ export function ProfileDetailsFetched({ profileId }: ProfileDetailsProps) {
     setShowSubscriptionModal(true)
   }
 
+  const handleVideoCall = () => {
+    if (!profile) return
+    if (isPublicPreview) return
+
+    if (!currentUser) {
+      setShowLoginModal(true)
+      return
+    }
+
+    if (!hasContentAccess) {
+      setShowSubscriptionModal(true)
+      return
+    }
+
+    router.push(`/dashboard/chat?contactId=${encodeURIComponent(profile.id)}`)
+  }
+
   if (profileNotFound) {
     return (
       <div className="container mx-auto px-4 py-16 text-center">
@@ -166,11 +184,11 @@ export function ProfileDetailsFetched({ profileId }: ProfileDetailsProps) {
                     className="w-full h-full rounded-t-lg cursor-pointer overflow-hidden relative"
                     onClick={() => handleImageClick(currentImageIndex)}
                   >
-                    <Image
+                    <MediaFill
                       src={currentGalleryItem?.url || profile.images[currentImageIndex]}
                       alt={profile.name}
-                      fill
-                      className={cn("object-cover", shouldBlurCurrentImage && "blur-md")}
+                      mediaType={currentGalleryItem?.mediaType}
+                      className={cn(shouldBlurCurrentImage && "blur-md")}
                       priority
                     />
                     {shouldBlurCurrentImage && (
@@ -214,12 +232,14 @@ export function ProfileDetailsFetched({ profileId }: ProfileDetailsProps) {
                     }`}
                     onClick={() => handleImageClick(index)}
                   >
-                    <Image
+                    <MediaFill
                       src={image.url}
                       alt={`${profile.name} ${index + 1}`}
-                      fill
-                      className={cn("object-cover", image.isBlurred && !hasContentAccess && "blur-md")}
+                      mediaType={image.mediaType}
+                      className={cn(image.isBlurred && !hasContentAccess && "blur-md")}
                       sizes="(max-width: 768px) 25vw, 15vw"
+                      autoPlay={image.mediaType === "video"}
+                      loop={image.mediaType === "video"}
                     />
                     {image.isBlurred && !hasContentAccess && (
                       <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
@@ -267,24 +287,34 @@ export function ProfileDetailsFetched({ profileId }: ProfileDetailsProps) {
                   <Phone className="h-4 w-4 mr-2" />
                   WhatsApp
                 </Button>
-                <Button className="w-full bg-primary-600 hover:bg-primary-700">
-                  <Calendar className="h-4 w-4 mr-2" />
-                  Agendar Encontro
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="w-full border-gray-600 text-gray-300 bg-transparent"
-                  onClick={() => {
-                    if (isLoggedIn) {
-                      router.push(`/dashboard/chat?contactId=${encodeURIComponent(profile?.id || profileId)}`)
-                    } else {
-                      setShowLoginModal(true)
-                    }
-                  }}
-                >
-                  <MessageCircle className="h-4 w-4 mr-2" />
-                  Chat Privado
-                </Button>
+                <div className="grid grid-cols-2 gap-3">
+                  <Button className="col-span-2 bg-primary-600 hover:bg-primary-700">
+                    <Calendar className="h-4 w-4 mr-2" />
+                    Agendar Encontro
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full border-gray-600 text-gray-300 bg-transparent"
+                    onClick={() => {
+                      if (isLoggedIn) {
+                        router.push(`/dashboard/chat?contactId=${encodeURIComponent(profile?.id || profileId)}`)
+                      } else {
+                        setShowLoginModal(true)
+                      }
+                    }}
+                  >
+                    <MessageCircle className="h-4 w-4 mr-2" />
+                    Chat
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full border-gray-600 text-gray-300 bg-transparent"
+                    onClick={handleVideoCall}
+                  >
+                    <Video className="h-4 w-4 mr-2" />
+                    Vídeo
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>

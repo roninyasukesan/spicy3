@@ -21,6 +21,7 @@ import { PHYSICAL_CHARACTERISTICS, type PhysicalCharacteristics } from "@/lib/ph
 import { AudioPlayerWave } from "@/components/ui/audio-player-wave";
 import { Dialog, DialogContent, DialogTitle, DialogHeader } from "@/components/ui/dialog";
 import Image from "next/image";
+import { MediaFill } from "@/components/ui/media-fill";
 import {
   isRemoteMediaEnabled,
   syncRemoteProfileMedia,
@@ -32,7 +33,25 @@ import {
 } from "@/lib/profile-client";
 
 const SERVICES_LIST = ["Acompanhante", "Massagem", "Jantar", "Eventos", "Viagens", "Fetiches"];
+const MAX_PHOTOS = 12;
+const MAX_STORIES = 10;
+const MAX_PHOTO_FILE_SIZE_BYTES = 15 * 1024 * 1024;
+const MAX_GALLERY_VIDEO_FILE_SIZE_BYTES = 25 * 1024 * 1024;
 type SaveStatus = "idle" | "compressing" | "saving" | "success";
+const MODELO_TABS = ["dashboard", "profile", "media"] as const;
+type ModeloTab = (typeof MODELO_TABS)[number];
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function getModeloTab(value: string | null): ModeloTab {
+  return MODELO_TABS.includes(value as ModeloTab)
+    ? (value as ModeloTab)
+    : "dashboard";
+}
 
 export default function ModeloDashboardPage() {
   const router = useRouter();
@@ -168,6 +187,17 @@ export default function ModeloDashboardPage() {
       "animate-pulse scale-[0.98] bg-amber-600 hover:bg-amber-600 shadow-lg shadow-amber-950/30",
     saveStatus === "success" && "bg-emerald-600 hover:bg-emerald-600"
   );
+  const activeTab = getModeloTab(searchParams.get("tab"));
+
+  const handleTabChange = (value: string) => {
+    const nextTab = getModeloTab(value);
+    router.replace(
+      nextTab === "dashboard"
+        ? "/dashboard/modelo"
+        : `/dashboard/modelo?tab=${nextTab}`,
+      { scroll: false }
+    );
+  };
 
   const updatePhotoItems = (photoItems: ModelPhoto[]) => {
     setProfile((prev) => ({
@@ -340,17 +370,58 @@ export default function ModeloDashboardPage() {
   };
 
   const processFiles = async (files: File[]) => {
+    const remainingSlots = MAX_PHOTOS - currentPhotoItems.length;
+    if (remainingSlots <= 0) {
+      toast({
+        title: "Limite de galeria atingido",
+        description: `Remova alguma mídia antes de adicionar mais. Limite atual: ${MAX_PHOTOS}.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const feedback: string[] = [];
+    const acceptedFiles = files.filter((file) => {
+      if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
+        feedback.push(`"${file.name}" foi ignorado porque nao e uma imagem nem um video.`);
+        return false;
+      }
+
+      if (file.type.startsWith("image/") && file.size > MAX_PHOTO_FILE_SIZE_BYTES) {
+        feedback.push(`"${file.name}" excede ${formatFileSize(MAX_PHOTO_FILE_SIZE_BYTES)}.`);
+        return false;
+      }
+
+      if (file.type.startsWith("video/") && file.size > MAX_GALLERY_VIDEO_FILE_SIZE_BYTES) {
+        feedback.push(`"${file.name}" excede ${formatFileSize(MAX_GALLERY_VIDEO_FILE_SIZE_BYTES)} para vídeo na galeria.`);
+        return false;
+      }
+
+      return true;
+    });
+    const validFiles = acceptedFiles.slice(0, remainingSlots);
+
+    if (acceptedFiles.length > validFiles.length) {
+      feedback.push(`A galeria aceita no máximo ${MAX_PHOTOS} mídias.`);
+    }
+
     let addedCount = 0;
 
-    for (const file of files) {
-      if (!file.type.startsWith('image/')) continue;
-      
+    for (const file of validFiles) {
       try {
-        const compressedDataUrl = await compressImage(file, 900, 900, 0.55);
+        const mediaUrl = file.type.startsWith("video/")
+          ? await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.onerror = () => reject(reader.error);
+              reader.readAsDataURL(file);
+            })
+          : await compressImage(file, 900, 900, 0.55);
         const nextPhoto: ModelPhoto = {
           id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          url: compressedDataUrl,
+          url: mediaUrl,
           isBlurred: false,
+          mediaType: file.type.startsWith("video/") ? "video" : "image",
         };
         
         setProfile((prev) => {
@@ -369,7 +440,7 @@ export default function ModeloDashboardPage() {
         });
         addedCount += 1;
       } catch (error) {
-        console.error("Erro ao processar imagem:", error);
+        console.error("Erro ao processar mídia:", error);
         toast({ 
           title: "Erro ao processar imagem", 
           description: error instanceof Error ? error.message : "Não foi possível processar uma das imagens.",
@@ -378,9 +449,9 @@ export default function ModeloDashboardPage() {
       }
     }
 
-    if (addedCount > 0) {
+    if (addedCount > 0 || feedback.length > 0) {
       toast({
-        title: `${addedCount} foto${addedCount > 1 ? "s" : ""} pronta${addedCount > 1 ? "s" : ""} para salvar`,
+        title: addedCount > 0 ? `${addedCount} mídia${addedCount > 1 ? "s" : ""} pronta${addedCount > 1 ? "s" : ""} para salvar` : "Nenhuma mídia adicionada",
         description: "Revise capa, ordem e cadeado e clique em Salvar Alterações.",
       });
     }
@@ -560,7 +631,7 @@ export default function ModeloDashboardPage() {
           </div>
         </div>
 
-        <Tabs defaultValue="dashboard" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
           <TabsList className="bg-dark-900 border-gray-800">
             <TabsTrigger value="dashboard">Visão Geral</TabsTrigger>
             <TabsTrigger value="profile">Editar Perfil</TabsTrigger>
@@ -858,9 +929,9 @@ export default function ModeloDashboardPage() {
                 {/* Fotos */}
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
-                    <Label className="text-white text-lg">Galeria de Fotos</Label>
+                    <Label className="text-white text-lg">Galeria de Fotos e Vídeos</Label>
                     <span className="text-xs text-gray-400">
-                      {currentPhotoItems.length} fotos
+                      {currentPhotoItems.length} mídias
                     </span>
                   </div>
                   
@@ -881,22 +952,22 @@ export default function ModeloDashboardPage() {
                     <Input
                       type="file"
                       multiple
-                      accept="image/*"
+                      accept="image/*,video/*"
                       onChange={handlePhotoUpload}
                       className="hidden"
                       ref={fileInputRef}
                     />
                     <div className="flex flex-col items-center gap-3">
                       <div className={`p-4 rounded-full ${isDragging ? 'bg-primary/20 text-primary' : 'bg-gray-800 text-gray-400'}`}>
-                        {isDragging ? <Upload className="h-8 w-8 animate-bounce" /> : <ImageIcon className="h-8 w-8" />}
+                        {isDragging ? <Upload className="h-8 w-8 animate-bounce" /> : <Film className="h-8 w-8" />}
                       </div>
                       <div className="space-y-1">
                         <p className="text-white font-medium text-lg">
-                          {isDragging ? 'Solte as fotos aqui' : 'Escolha fotos'}
+                          {isDragging ? 'Solte as mídias aqui' : 'Escolha fotos e vídeos'}
                         </p>
                         <p className="text-sm text-gray-500">
                           {currentPhotoItems.length === 0 
-                            ? "Nenhuma foto selecionada" 
+                            ? "Nenhuma mídia selecionada"
                             : "Arraste para enviar, reordenar e definir a cadeado"
                           }
                         </p>
@@ -907,7 +978,7 @@ export default function ModeloDashboardPage() {
                   {/* Grid de Visualização */}
                   {currentPhotoItems.length > 0 && (
                     <div className="space-y-2 animate-in fade-in duration-500">
-                      <Label className="text-gray-300">Fotos Selecionadas</Label>
+                      <Label className="text-gray-300">Mídias Selecionadas</Label>
                       <p className="text-xs text-gray-500">
                         A primeira foto é a foto de capa. Arraste os cards para reordenar e use o cadeado para aplicar blur ao cliente.
                       </p>
@@ -925,10 +996,21 @@ export default function ModeloDashboardPage() {
                               setDraggedPhotoId(null);
                             }}
                             onDragEnd={() => setDraggedPhotoId(null)}
-                            onClick={() => setPreviewMedia({ url: photo.url, type: 'image' })}
+                            onClick={() => setPreviewMedia({ url: photo.url, type: photo.mediaType === "video" ? "video" : "image" })}
                             className="relative aspect-[3/4] rounded-lg overflow-hidden border border-gray-700 group shadow-sm hover:shadow-md transition-all cursor-zoom-in"
                           >
-                            <Image src={photo.url} alt={`Foto ${index + 1}`} fill sizes="(max-width: 768px) 50vw, 20vw" className={`${photo.isBlurred ? "blur-md " : ""}object-cover transition-transform duration-300 group-hover:scale-105`} />
+                            <MediaFill
+                              src={photo.url}
+                              alt={`Mídia ${index + 1}`}
+                              mediaType={photo.mediaType}
+                              sizes="(max-width: 768px) 50vw, 20vw"
+                              className={cn(
+                                photo.isBlurred && "blur-md",
+                                "transition-transform duration-300 group-hover:scale-105"
+                              )}
+                              autoPlay={photo.mediaType === "video"}
+                              loop={photo.mediaType === "video"}
+                            />
                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
                               <Eye className="h-8 w-8 text-white/70" />
                             </div>
@@ -975,6 +1057,10 @@ export default function ModeloDashboardPage() {
                               </Button>
                             </div>
                             
+                            <div className="absolute bottom-2 left-2 z-20 rounded bg-black/70 px-2 py-1 text-[10px] font-semibold text-white">
+                              {photo.mediaType === "video" ? "VÍDEO" : "FOTO"}
+                            </div>
+
                             <div className="absolute bottom-2 left-2 right-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100 z-20">
                               <Button
                                 type="button"

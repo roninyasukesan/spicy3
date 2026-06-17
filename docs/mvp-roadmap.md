@@ -1,5 +1,26 @@
 # MVP Roadmap e Checklist de Funcionalidades
 
+## Progresso consolidado - 15/06/2026
+
+O commit `0624fe4` concluiu a base remota que não existia na versão original
+deste roadmap:
+
+- [x] Modos local e remoto selecionados por configuração explícita.
+- [x] Supabase Auth com sessão SSR.
+- [x] RBAC para admin, modelo e cliente.
+- [x] Perfis remotos e identificadores públicos.
+- [x] Administração remota de usuários e planos.
+- [x] Google Drive para fotos, stories, vídeos e áudio.
+- [x] Migração do LocalStorage sem remoção automática dos dados locais.
+- [x] Backup da migração no IndexedDB.
+- [x] Health check e build de produção validados.
+
+As prioridades ainda abertas concentram-se em chat remoto, anti-spam,
+observabilidade, moderação, auditoria, pagamentos e conformidade.
+
+Detalhes:
+[`REMOTE-INFRASTRUCTURE-MIGRATION.md`](REMOTE-INFRASTRUCTURE-MIGRATION.md).
+
 ## Objetivo
 - Entregar um MVP funcional com potencial competitivo: usuário entra, descobre, contata/compra, paga/assina, e recebe suporte.
 - Priorizar fluxos que geram valor rapidamente e sustentam conversão.
@@ -15,11 +36,12 @@
 
 ### P1 — Acesso e RBAC (crítico)
 - [x] Adicionar guarda de acesso no dashboard (layout de proteção)
-- [ ] Revisar login/cadastro/recuperação e eventos de sessão
+- [x] Revisar login/logout e eventos de sessão
+- [ ] Revisar cadastro e recuperação de senha remotos
 - Testes:
-  - [ ] Sem login: acesso a `/dashboard/*` redireciona para `/cadastro`
-  - [ ] Com cliente/modelo/admin: acesso liberado às rotas correspondentes
-  - [ ] Troca de usuário atualiza acesso imediatamente
+  - [x] Sem login: acesso a `/dashboard/*` é bloqueado
+  - [x] Com cliente/modelo/admin: acesso liberado às rotas correspondentes
+  - [x] Login e logout atualizam o acesso imediatamente
 
 ### P2 — Busca e CTA (crítico)
 - [ ] Validar filtros: estado, cidade, preço, serviços, características, “online agora”

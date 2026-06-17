@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge"
 import { MapPin, Star, Eye, Heart, Shield, MessageCircle, PlayCircle, Filter, ChevronUp, ChevronDown, Clock, DollarSign } from "lucide-react"
 import { AnimatedText } from "@/components/animated-text";
 import { useState, useEffect, useCallback } from "react";
-import Image from "next/image";
 import { ModelDetailsModal, Model } from "@/components/model-details-modal";
 import { SearchFiltersState } from "@/app/busca/page";
 import { PhysicalCharacteristics } from "@/lib/physical-characteristics";
@@ -18,11 +17,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Slider } from "@/components/ui/slider"
 import { SearchFilters } from "@/components/search-filters"
 import { locations } from "@/lib/brazil-locations";
-import { mapLocalProfileToModel } from "@/lib/model-mappers";
+import { getGalleryItemsFromModel, mapLocalProfileToModel } from "@/lib/model-mappers";
 import {
   fetchPublishedProfiles,
   isRemoteDataEnabled,
 } from "@/lib/profile-client";
+import { MediaFill } from "@/components/ui/media-fill";
 
 interface SearchResultsProps {
   filters: SearchFiltersState;
@@ -354,6 +354,9 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
       {/* Stories Bar - Instagram Style */}
       <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
         {profiles.filter(p => p.stories && p.stories.length > 0).map((profile) => (
+          (() => {
+            const coverItem = getGalleryItemsFromModel(profile)[0]
+            return (
           <div 
             key={profile.id} 
             className="flex flex-col items-center gap-2 flex-shrink-0 cursor-pointer group"
@@ -361,17 +364,21 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
           >
             <div className="relative w-16 h-16 sm:w-20 sm:h-20 p-[2px] rounded-full bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-500">
               <div className="w-full h-full rounded-full border-2 border-dark-950 overflow-hidden relative">
-                <Image
-                  src={profile.imageUrl}
+                <MediaFill
+                  src={coverItem?.url || profile.imageUrl}
                   alt={profile.name}
-                  fill
+                  mediaType={coverItem?.mediaType}
                   sizes="(max-width: 768px) 64px, 80px"
-                  className="object-cover transition-transform duration-300 group-hover:scale-110"
+                  className="transition-transform duration-300 group-hover:scale-110"
+                  autoPlay={coverItem?.mediaType === "video"}
+                  loop={coverItem?.mediaType === "video"}
                 />
               </div>
             </div>
             <span className="text-xs text-white truncate w-20 text-center">{profile.name}</span>
           </div>
+            )
+          })()
         ))}
       </div>
 
@@ -489,6 +496,7 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {filteredProfiles.map((profile: Model, index: number) => {
           const hasStories = profile.stories && profile.stories.length > 0;
+          const coverItem = getGalleryItemsFromModel(profile)[0];
           return (
           <AnimatedText key={profile.id} delay={index * 0.1 + 0.2}>
             <Card className="bg-dark-800/50 border-gray-700 card-hover overflow-hidden">
@@ -499,12 +507,13 @@ export function SearchResults({ filters, setFilters, isFiltersOpen = false, setI
                     className="relative w-full h-64 sm:w-48 sm:h-auto flex-shrink-0 cursor-pointer overflow-hidden group"
                     onClick={() => handleOpenModal(profile)}
                   >
-                    <Image
-                      src={profile.imageUrl}
+                    <MediaFill
+                      src={coverItem?.url || profile.imageUrl}
                       alt={profile.name}
-                      fill
-                      className="object-cover"
+                      mediaType={coverItem?.mediaType}
                       sizes="(max-width: 640px) 100vw, 192px"
+                      autoPlay={coverItem?.mediaType === "video"}
+                      loop={coverItem?.mediaType === "video"}
                     />
                     {hasStories && (
                       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 opacity-0 group-hover:opacity-100 transition-opacity">

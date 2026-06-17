@@ -73,12 +73,15 @@ export function serializePublishedProfile(
   media: Array<Record<string, unknown>> = []
 ) {
   const characteristics = normalizeCharacteristics(row.characteristics)
-  const remotePhotos = media
-    .filter((item) => item.media_type === "photo")
+  const remoteGalleryItems = media
+    .filter((item) => item.media_type === "photo" || item.media_type === "video")
     .map((item) => ({
       id: String(item.id),
       url: `/api/media/${String(item.id)}`,
       isBlurred: Boolean(item.is_blurred),
+      mediaType: String(item.mime_type || "").startsWith("video/")
+        ? ("video" as const)
+        : ("image" as const),
     }))
   const remoteStories = media
     .filter((item) => item.media_type === "story")
@@ -100,6 +103,7 @@ export function serializePublishedProfile(
           id: String(item.id || `gallery-${index}`),
           url: String(item.url),
           isBlurred: Boolean(item.isBlurred),
+          mediaType: item.mediaType === "video" ? ("video" as const) : ("image" as const),
         }))
     : []
 
@@ -115,7 +119,7 @@ export function serializePublishedProfile(
     exclusions: stringArray(row.exclusions),
     priceRange: String(row.price_range || row.price || ""),
     characteristics,
-    photoItems: remotePhotos.length > 0 ? remotePhotos : storedItems,
+    photoItems: remoteGalleryItems.length > 0 ? remoteGalleryItems : storedItems,
     stories:
       remoteStories.length > 0
         ? remoteStories

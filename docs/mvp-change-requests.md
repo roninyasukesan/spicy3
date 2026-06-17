@@ -1,8 +1,28 @@
- # Solicitações de Mudança por Feature (MVP) — Human-in-the-Middle
- 
- Este documento sinaliza as mudanças necessárias para atingir o MVP. Nenhuma alteração de código deve ser aplicada antes de aprovação humana explícita.
- 
- ---
+# Solicitações de Mudança por Feature (MVP) — Human-in-the-Middle
+
+Este documento sinaliza as mudanças necessárias para atingir o MVP. Nenhuma alteração de código deve ser aplicada antes de aprovação humana explícita.
+
+---
+
+## Estado das solicitações - 15/06/2026
+
+As solicitações relacionadas a **Acesso e RBAC**, **Autenticação remota** e
+**Perfis e Upload** foram implementadas no commit `0624fe4`.
+
+- Dashboards possuem proteção específica por papel.
+- A sessão Supabase usa SSR e é sincronizada com a interface local.
+- O modo demo permanece disponível por flags.
+- Perfis usam Supabase; mídias usam Google Drive e metadados no Supabase.
+- A migração administrativa preserva dados locais e pode ser reexecutada.
+
+As solicitações de chat anti-spam, pagamentos, moderação, observabilidade, SEO
+e consentimentos permanecem abertas.
+
+Consulte
+[`REMOTE-INFRASTRUCTURE-MIGRATION.md`](REMOTE-INFRASTRUCTURE-MIGRATION.md)
+para a implementação e as evidências de teste.
+
+---
  
  ## Acesso e RBAC
  - Mudança necessária

@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase"
-import type { ModelPhoto } from "@/lib/local-auth"
+import { getProfileCoverImage, type ModelPhoto } from "@/lib/local-auth"
 
 export type DbProfile = {
   id: string
@@ -89,7 +89,7 @@ export async function fetchProfileById(id: string): Promise<DbProfile | null> {
           name: local.artisticName,
           city: local.city,
           price: local.priceRange,
-          image_url: local.photos?.[0] || null,
+          image_url: getProfileCoverImage(local) || null,
           age: parseInt(local.age) || 25,
           rating: 5.0,
           reviews: 0,
@@ -125,24 +125,33 @@ export async function fetchProfileById(id: string): Promise<DbProfile | null> {
     if (!response.ok) return data
 
     const payload = await response.json()
-    const photos = (payload.media || []).filter(
-      (media: { media_type?: string }) => media.media_type === "photo"
+    const galleryItems = (payload.media || []).filter(
+      (media: { media_type?: string }) =>
+        media.media_type === "photo" || media.media_type === "video"
     )
 
-    if (photos.length === 0) return data
+    if (galleryItems.length === 0) return data
 
     return {
       ...data,
       image_url:
-        photos.find((media: { is_cover?: boolean }) => media.is_cover)?.url ||
-        photos[0].url ||
+        galleryItems.find((media: { is_cover?: boolean }) => media.is_cover)?.url ||
+        galleryItems[0].url ||
         data.image_url,
-      gallery: photos.map((media: { url: string }) => media.url),
-      gallery_items: photos.map(
-        (media: { id: string; url: string; is_blurred?: boolean }) => ({
+      gallery: galleryItems.map((media: { url: string }) => media.url),
+      gallery_items: galleryItems.map(
+        (media: {
+          id: string
+          url: string
+          is_blurred?: boolean
+          mime_type?: string
+        }) => ({
           id: media.id,
           url: media.url,
           isBlurred: Boolean(media.is_blurred),
+          mediaType: String(media.mime_type || "").startsWith("video/")
+            ? "video"
+            : "image",
         })
       ),
     }

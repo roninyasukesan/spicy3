@@ -1,68 +1,134 @@
-# Arquitetura de Banco de Dados (Recomendada)
+# Arquitetura de Banco de Dados
 
-Para a plataforma **Spicy**, a escolha ideal é um banco de dados **Relacional (SQL)**, especificamente **PostgreSQL**.
+Este documento descreve o estado atual da persistência remota do Spicy.
+O PostgreSQL do Supabase armazena identidades, perfis e metadados. Os arquivos
+binários de mídia são armazenados no Google Drive.
 
-Atualmente, o projeto já está preparado para utilizar o **Supabase**, que oferece PostgreSQL como serviço, além de Autenticação e Storage (arquivos).
+## Separação de responsabilidades
 
-## Por que PostgreSQL/Supabase?
+| Componente | Responsabilidade |
+| --- | --- |
+| Supabase Auth | Identidade, senha, sessão e metadados de autorização. |
+| `profiles` | Papel, plano e dados públicos/estruturados do perfil. |
+| `profile_media` | Metadados e regras de acesso das mídias. |
+| Google Drive | Conteúdo binário de fotos, vídeos e áudio. |
+| Next.js API | Autorização, upload, streaming e operações administrativas. |
+| LocalStorage | Modo demo e cache compatível durante a transição. |
+| IndexedDB | Backup dos perfis locais antes da migração. |
 
-1.  **Dados Estruturados & Flexibilidade:** O PostgreSQL permite misturar colunas rígidas (email, senha) com dados flexíveis (JSONB para características físicas que podem mudar) e Arrays (para listas de fetiches/serviços), o que já estamos usando no código.
-2.  **Geolocalização (PostGIS):** Essencial para a funcionalidade "Perto de mim" ou busca por raio de distância.
-3.  **Segurança (RLS):** "Row Level Security" permite definir regras direto no banco (ex: "só o próprio usuário pode editar seu perfil").
-4.  **Ecossistema Integrado:** O Supabase já entrega o Banco + Storage (para as fotos) + Auth em um único pacote.
+O navegador não recebe `SUPABASE_SECRET_KEY`,
+`SUPABASE_SERVICE_ROLE_KEY`, credenciais OAuth do Google nem chave privada de
+service account.
 
-## Esquema de Dados Proposto (ERD)
+## Tabela `profiles`
 
-### 1. Tabela `profiles` (Já iniciada)
-Armazena os dados públicos das modelos e clientes.
-*   `id` (UUID, PK) - Link com `auth.users`
-*   `type` (Enum) - 'model' | 'client' | 'admin'
-*   `slug` (String, Unique) - Para URLs amigáveis (`/perfil/nome-tal`)
-*   `display_name` (String)
-*   `bio`, `city`, `neighborhood` (Strings)
-*   `location` (Geography) - Latitude/Longitude para busca por mapa
-*   `price_range` (String)
-*   `services` (Array<String>) - Ex: ['Massagem', 'Jantar']
-*   `fetishes` (Array<String>)
-*   `stats` (JSONB) - Altura, cor dos olhos, etc.
-*   `is_verified` (Boolean) - Se enviou documentos
-*   `plan_tier` (Enum) - 'free' | 'gold' | 'diamond' (destaque)
+O schema é consolidado por
+`supabase/migrations/20260612212133_profiles_backend.sql` e migrações
+posteriores.
 
-### 2. Tabela `media_gallery` (Nova)
-Gerencia as fotos e vídeos do perfil, separando conteúdo público de privado.
-*   `id` (UUID)
-*   `profile_id` (FK)
-*   `url` (String) - Caminho no Storage
-*   `type` (Enum) - 'image' | 'video'
-*   `is_private` (Boolean) - Se é conteúdo pago/assinante
-*   `blur_level` (Int) - Para prévias de conteúdo adulto
+Campos principais:
 
-### 3. Tabela `reviews` (Nova)
-Avaliações e depoimentos.
-*   `id` (UUID)
-*   `model_id` (FK)
-*   `author_id` (FK)
-*   `rating` (Int 1-5)
-*   `comment` (Text)
-*   `created_at` (Timestamp)
+| Campo | Uso |
+| --- | --- |
+| `id` | UUID principal, normalmente igual ao usuário do Supabase Auth. |
+| `user_id` | Compatibilidade com schemas que separam perfil e usuário. |
+| `public_id` | UUID público usado nas URLs; não expõe o e-mail. |
+| `email` | Associação administrativa e migração por e-mail normalizado. |
+| `role` | `admin`, `model` ou `client`. |
+| `plan_tier` | `free`, `gold` ou `diamond`; a UI apresenta `gold` como `vip`. |
+| `display_name`, `phone`, `city`, `age`, `bio` | Dados básicos do perfil. |
+| `services`, `fetishes`, `exclusions` | Listas de atributos e serviços. |
+| `characteristics` | Características flexíveis em JSONB. |
+| `gallery_items`, `stories`, `voice_url` | Representação compatível com a UI. |
+| `is_verified` | Estado de verificação administrativa. |
+| `created_at`, `updated_at` | Auditoria temporal básica. |
 
-### 4. Tabela `conversations` & `messages` (Chat)
-*   `conversations`: Link entre dois usuários (`participant_a`, `participant_b`).
-*   `messages`: Conteúdo do chat, timestamps de leitura.
+Índices relevantes:
 
-### 5. Tabela `verifications` (Admin)
-Fila para aprovação de documentos.
-*   `user_id` (FK)
-*   `document_front_url` (String)
-*   `document_back_url` (String)
-*   `selfie_verification` (String)
-*   `status` (Enum) - 'pending' | 'approved' | 'rejected'
+- `profiles_public_id_idx`: identificador público único.
+- `profiles_email_idx`: e-mail único, sem diferenciar maiúsculas de minúsculas.
+- `profiles_user_id_idx`: busca do perfil pelo usuário autenticado.
 
----
+## Tabela `profile_media`
 
-## Próximos Passos para Implementação
+Criada por `supabase/migrations/20260610_profile_media.sql`.
 
-1.  Criar o projeto no Supabase (painel online).
-2.  Rodar as migrações SQL para criar essas tabelas.
-3.  Atualizar o `lib/supabase.ts` com as chaves reais.
-4.  Substituir as chamadas de `localStorage` em `local-auth.ts` por chamadas ao Supabase.
+| Campo | Uso |
+| --- | --- |
+| `id` | UUID público usado em `/api/media/<id>`. |
+| `profile_id` | Perfil proprietário. |
+| `drive_file_id` | Identificador único do arquivo no Google Drive. |
+| `file_name`, `mime_type`, `size_bytes` | Metadados do arquivo. |
+| `media_type` | `photo`, `story`, `video`, `audio` ou `document`. |
+| `position` | Ordem dentro da galeria ou stories. |
+| `visibility` | `public`, `subscriber` ou `private`. |
+| `is_cover` | Define a foto de capa. |
+| `is_blurred` | Solicita desfoque na interface. |
+| `status` | `processing`, `ready` ou `failed`. |
+| `expires_at` | Expiração opcional, usada por conteúdo temporário. |
+| `created_at`, `updated_at` | Datas de criação e alteração. |
+
+Restrições e índices:
+
+- Um único `drive_file_id` por registro.
+- Uma única capa por perfil.
+- Índice por perfil, tipo e posição.
+- Índice por visibilidade e status.
+- Tamanho e posição não podem ser negativos.
+
+## Segurança e RLS
+
+As tabelas expostas pela Data API possuem RLS habilitado.
+
+### `profiles`
+
+- Leitura pública dos campos do perfil.
+- Escrita do proprietário validada por `auth.uid()`.
+- Campos sensíveis como papel, plano e verificação são administrados pelo
+  servidor.
+
+### `profile_media`
+
+- Leitura anônima somente quando a mídia está pública, pronta e não expirada.
+- Proprietário e administrador podem ler mídias não públicas.
+- Inserção, atualização e exclusão exigem propriedade ou papel administrativo.
+- As funções `is_admin()` e `owns_profile(uuid)` não são executáveis por
+  usuários anônimos.
+
+RLS e privilégios SQL são camadas diferentes. As migrations concedem
+explicitamente os `GRANT` necessários para `anon` e `authenticated`, além de
+definir as políticas de linha.
+
+## Migrações relacionadas
+
+```text
+supabase/migrations/20260610_profile_media.sql
+supabase/migrations/20260612212133_profiles_backend.sql
+supabase/migrations/20260613053834_fix_profiles_rls_recursion.sql
+supabase/migrations/20260613060816_auth_profile_sync.sql
+```
+
+## Fluxo de mídia
+
+```text
+Browser
+  -> Next.js /api/media
+  -> validação da sessão e do perfil
+  -> Google Drive (arquivo)
+  -> Supabase profile_media (metadados)
+  -> /api/media/<uuid> (streaming autorizado)
+```
+
+Arquivos protegidos não recebem link público no Google Drive.
+
+## Próximos passos
+
+1. Criar uma trilha `admin_audit_log` para operações administrativas.
+2. Adicionar rate limiting a uploads, exclusões e criação de usuários.
+3. Definir retenção e recuperação do backup de migração.
+4. Implementar upload em partes para arquivos grandes.
+5. Migrar chat e favoritos locais para persistência remota completa.
+
+Consulte
+[`docs/REMOTE-INFRASTRUCTURE-MIGRATION.md`](docs/REMOTE-INFRASTRUCTURE-MIGRATION.md)
+para o processo de importação dos dados locais.

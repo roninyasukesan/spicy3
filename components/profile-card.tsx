@@ -7,13 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Star, Shield, Eye, Heart, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Model } from "./model-details-modal";
-import Image from "next/image";
 import { useFavorites } from "@/lib/favorites";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { localGetUser } from "@/lib/local-auth";
 import { getGalleryItemsFromModel } from "@/lib/model-mappers";
+import { MediaFill } from "@/components/ui/media-fill";
 
 interface ProfileCardProps {
   profile: Model;
@@ -162,12 +162,13 @@ export function ProfileCard({ profile, isLoggedIn, onDetailsClick, onStoryClick 
             )}
             onClick={handleStoryClick}
           >
-            <Image
-              src={profile.imageUrl}
+            <MediaFill
+              src={coverPhoto?.url || profile.imageUrl}
               alt={profile.name}
-              fill
-              className="object-cover"
+              mediaType={coverPhoto?.mediaType}
               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              autoPlay={coverPhoto?.mediaType === "video"}
+              loop={coverPhoto?.mediaType === "video"}
             />
           </div>
           {hasStories && (

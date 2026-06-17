@@ -732,6 +732,7 @@ export type ModelPhoto = {
   id: string
   url: string
   isBlurred?: boolean
+  mediaType?: "image" | "video"
 }
 
 export type Story = {
@@ -864,6 +865,7 @@ function normalizePhotoItem(
       id: `legacy-${index}-${photo.slice(0, 16)}`,
       url: photo,
       isBlurred: false,
+      mediaType: "image",
     }
   }
 
@@ -873,6 +875,7 @@ function normalizePhotoItem(
     id: photo.id || createPhotoId(),
     url: photo.url,
     isBlurred: Boolean(photo.isBlurred),
+    mediaType: photo.mediaType === "video" ? "video" : "image",
   }
 }
 

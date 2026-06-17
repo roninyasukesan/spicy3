@@ -1,6 +1,62 @@
- # Relatório de Testes do MVP (Hoje)
- 
- ## Escopo
+# Relatório de Testes do MVP
+
+## Atualização - 15/06/2026
+
+### Infraestrutura remota
+
+- **Status:** Funciona.
+- **Evidência:** Supabase Auth/PostgreSQL e Google Drive foram validados em uma
+  instância Next.js com os dois modos remotos ativos.
+- **Health check:** requisição anônima retornou `401`; requisição autenticada
+  retornou `200`, `ready: true`, banco acessível e Drive acessível.
+- **Arquivos:** `proxy.ts`, `lib/remote-mode.ts`, `lib/media-client.ts`,
+  `lib/supabase/auth-server.ts`, `app/api/media/*`.
+
+### Autenticação e RBAC
+
+- **Status:** Funciona nos modos local e remoto.
+- **Evidência:** login, logout, sincronização de sessão e bloqueio por papel
+  foram testados para os dashboards.
+- **Contratos:** `GET /api/auth/me` e layouts específicos de admin, modelo e
+  cliente.
+
+### Administração remota
+
+- **Status:** Funciona.
+- **Evidência:** criação, listagem, alteração de plano e exclusão de usuários
+  remotos foram testadas.
+- **Regra de plano:** `vip` na UI corresponde a `gold` no banco.
+
+### Migração de perfis e mídias
+
+- **Status:** Funciona e é idempotente.
+- **Resultado:** 18 arquivos migrados: Laura com 13 e Nicole com 5.
+- **Composição:** 10 fotos e 8 stories de imagem. Não havia vídeos locais
+  recuperáveis.
+- **Integridade:** ordem, quatro marcações de desfoque da Laura, streaming e
+  dados locais foram preservados.
+- **Reexecução:** zero novas mídias foram criadas.
+- **Backup:** originais preservados no IndexedDB
+  `spicy-local-migration-backups`.
+
+### Verificações de engenharia
+
+- `npm run lint`: aprovado.
+- `npx tsc --noEmit --incremental false`: aprovado.
+- `git diff --check`: aprovado.
+- `npm run build`: aprovado com Next.js 16.2.7.
+
+Documento detalhado:
+[`REMOTE-INFRASTRUCTURE-MIGRATION.md`](REMOTE-INFRASTRUCTURE-MIGRATION.md).
+
+---
+
+## Relatório anterior
+
+O conteúdo abaixo registra o estado anterior à conclusão da infraestrutura
+remota e deve ser usado apenas como histórico.
+
+### Escopo
  - Avaliar funcionalidades críticas e documentar status: funciona, parcial, pendente.
  - Identificar faltas/sobras e pontos de atenção para commit posterior.
  

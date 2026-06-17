@@ -396,11 +396,16 @@ export async function syncRemoteProfileMedia(
   const remoteMedia = await listProfileMedia(profileId)
   const existingPhotos = options.preserveExisting
     ? remoteMedia
-        .filter((media) => media.media_type === "photo")
+        .filter(
+          (media) => media.media_type === "photo" || media.media_type === "video"
+        )
         .map((media) => ({
           id: media.id,
           url: media.url,
           isBlurred: media.is_blurred,
+          mediaType: media.mime_type.startsWith("video/")
+            ? ("video" as const)
+            : ("image" as const),
         }))
     : []
   const profilePhotos = profile.photoItems || []
@@ -470,7 +475,9 @@ async function syncRemoteProfilePhotosInternal(
   await requireRemoteMediaReady()
 
   const remoteMedia = await listProfileMedia(profileId)
-  const remotePhotos = remoteMedia.filter((media) => media.media_type === "photo")
+  const remotePhotos = remoteMedia.filter(
+    (media) => media.media_type === "photo" || media.media_type === "video"
+  )
   const remoteById = new Map(remotePhotos.map((media) => [media.id, media]))
   const retainedRemoteIds = new Set<string>()
   const uploadedIds: string[] = []
@@ -487,6 +494,9 @@ async function syncRemoteProfilePhotosInternal(
           id: photo.id,
           url: existingRemote.url,
           isBlurred: Boolean(photo.isBlurred),
+          mediaType: existingRemote.mime_type.startsWith("video/")
+            ? "video"
+            : "image",
         })
         continue
       }
@@ -498,15 +508,17 @@ async function syncRemoteProfilePhotosInternal(
 
       const compressedFile = await dataUrlToFile(
         photo.url,
-        `foto-${index + 1}.jpg`
+        photo.mediaType === "video"
+          ? `galeria-video-${index + 1}`
+          : `foto-${index + 1}.jpg`
       )
       const uploaded = await uploadProfileMedia({
         file: compressedFile,
         profileId,
-        mediaType: "photo",
+        mediaType: photo.mediaType === "video" ? "video" : "photo",
         visibility: "public",
         isBlurred: Boolean(photo.isBlurred),
-        isCover: index === 0,
+        isCover: index === 0 && photo.mediaType !== "video",
       })
       uploadedIds.push(uploaded.id)
       resolvedProfileId = uploaded.profile_id
@@ -515,6 +527,7 @@ async function syncRemoteProfilePhotosInternal(
         id: uploaded.id,
         url: uploaded.url,
         isBlurred: uploaded.is_blurred,
+        mediaType: uploaded.mime_type.startsWith("video/") ? "video" : "image",
       })
     }
 
@@ -530,7 +543,7 @@ async function syncRemoteProfilePhotosInternal(
       syncedRemoteItems.map((photo, index) =>
         updateProfileMedia(photo.id, {
           position: index,
-          isCover: index === 0,
+          isCover: index === 0 && photo.mediaType !== "video",
           isBlurred: Boolean(photo.isBlurred),
           visibility: "public",
         })

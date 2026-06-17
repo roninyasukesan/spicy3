@@ -4,6 +4,36 @@ Este documento registra as decisões arquiteturais, melhorias de performance e i
 
 ---
 
+## 📅 [15/06/2026] - Migração Remota Supabase + Google Drive
+
+#### [Modos local e remoto explícitos]
+*   **Estado anterior:** O LocalStorage e o Supabase eram usados por caminhos parcialmente sobrepostos, o que tornava difícil saber onde uma alteração seria persistida.
+*   **Ação:** Consolidação das flags `NEXT_PUBLIC_REMOTE_DATA_ENABLED` e `NEXT_PUBLIC_REMOTE_MEDIA_ENABLED` em `lib/remote-mode.ts`.
+*   **Resultado:** O modo local continua disponível sem apagar dados existentes, enquanto o modo remoto publica dados no Supabase e arquivos no Google Drive.
+
+#### [Autenticação SSR e proteção por papel]
+*   **Ação:** Implementação de sessão SSR com cookies, validação por `getClaims()` no Proxy, contrato `GET /api/auth/me`, sincronização da sessão com a UI e layouts protegidos para admin, modelo e cliente.
+*   **Resultado:** Login, logout e RBAC funcionam nos modos local e remoto. A interface local é atualizada imediatamente ao encerrar a sessão.
+
+#### [Sincronização completa de mídias]
+*   **Ação:** Expansão de `syncRemoteProfileMedia` para fotos, stories de imagem, stories de vídeo e áudio. Foram adicionados streaming protegido, capa, desfoque, visibilidade, ordenação e exclusão coordenada.
+*   **Resultado:** Mídias remotas existentes são preservadas durante a migração e o estado local mantém ordem e metadados.
+
+#### [Migração administrativa preservando dados locais]
+*   **Ação:** Criação de `lib/local-infrastructure-migration.ts` e do painel `LocalInfrastructureMigration`. O processo associa contas por e-mail normalizado, cria contas ausentes, migra perfis e gera relatório parcial de erros.
+*   **Proteção:** Antes de substituir Data URLs por URLs remotas, o perfil original é salvo no IndexedDB `spicy-local-migration-backups`.
+*   **Idempotência:** Arquivos são reutilizados por tipo, MIME type e tamanho; reexecuções não duplicam as mídias já migradas.
+
+#### [Resultado operacional]
+*   **Migrado:** 18 mídias de Laura e Nicole, sendo 10 fotos e 8 stories de imagem.
+*   **Vídeos:** Nenhum vídeo local recuperável foi encontrado; o suporte a vídeos permanece implementado.
+*   **Validação:** ESLint, TypeScript, `git diff --check`, build, health check, autenticação, RBAC, CRUD administrativo, streaming, ordem, desfoque e reexecução idempotente foram aprovados.
+*   **Commit:** `0624fe4 feat: complete remote infrastructure migration`.
+
+Detalhes completos: [`docs/REMOTE-INFRASTRUCTURE-MIGRATION.md`](docs/REMOTE-INFRASTRUCTURE-MIGRATION.md).
+
+---
+
 ## 📅 [03/06/2026] - Modernização e Restauração Estrutural
 
 #### [Atualização da Arquitetura: Next.js 16.2.7 & React 19.2.6]

@@ -22,6 +22,7 @@ import { PHYSICAL_CHARACTERISTICS, type PhysicalCharacteristics } from "@/lib/ph
 import { AudioPlayerWave } from "@/components/ui/audio-player-wave";
 import { Dialog, DialogContent, DialogTitle, DialogHeader } from "@/components/ui/dialog";
 import Image from "next/image";
+import { MediaFill } from "@/components/ui/media-fill";
 import {
   isRemoteMediaEnabled,
   syncRemoteProfileMedia,
@@ -37,6 +38,7 @@ const SERVICES_LIST = ["Acompanhante", "Massagem", "Jantar", "Eventos", "Viagens
 const MAX_PHOTOS = 12;
 const MAX_STORIES = 10;
 const MAX_PHOTO_FILE_SIZE_BYTES = 15 * 1024 * 1024;
+const MAX_GALLERY_VIDEO_FILE_SIZE_BYTES = 25 * 1024 * 1024;
 const MAX_STORY_IMAGE_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 const MAX_VOICE_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 const PHOTO_TARGET_BYTES = 260 * 1024;
@@ -399,13 +401,18 @@ export default function AdminEditModeloPage() {
 
     const feedback: string[] = [];
     const acceptedFiles = files.filter((file) => {
-      if (!file.type.startsWith('image/')) {
-        feedback.push(`"${file.name}" foi ignorado porque nao e uma imagem.`);
+      if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
+        feedback.push(`"${file.name}" foi ignorado porque nao e uma imagem nem um video.`);
         return false;
       }
 
-      if (file.size > MAX_PHOTO_FILE_SIZE_BYTES) {
+      if (file.type.startsWith('image/') && file.size > MAX_PHOTO_FILE_SIZE_BYTES) {
         feedback.push(`"${file.name}" excede ${formatFileSize(MAX_PHOTO_FILE_SIZE_BYTES)}.`);
+        return false;
+      }
+
+      if (file.type.startsWith('video/') && file.size > MAX_GALLERY_VIDEO_FILE_SIZE_BYTES) {
+        feedback.push(`"${file.name}" excede ${formatFileSize(MAX_GALLERY_VIDEO_FILE_SIZE_BYTES)} para video na galeria.`);
         return false;
       }
 
@@ -421,11 +428,19 @@ export default function AdminEditModeloPage() {
 
     for (const file of validFiles) {
       try {
-        const compressedDataUrl = await compressImage(file, 960, 1280, 0.72, PHOTO_TARGET_BYTES);
+        const mediaUrl = file.type.startsWith('video/')
+          ? await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.onerror = () => reject(reader.error);
+              reader.readAsDataURL(file);
+            })
+          : await compressImage(file, 960, 1280, 0.72, PHOTO_TARGET_BYTES);
         newPhotoItems.push({
           id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          url: compressedDataUrl,
+          url: mediaUrl,
           isBlurred: false,
+          mediaType: file.type.startsWith('video/') ? 'video' : 'image',
         });
       } catch (error) {
         console.error(error);
@@ -447,8 +462,8 @@ export default function AdminEditModeloPage() {
     }
 
     toast({
-      title: newPhotoItems.length > 0 ? "Fotos adicionadas!" : "Nenhuma foto adicionada",
-      description: feedback.length > 0 ? feedback.join(" ") : `As imagens foram comprimidas para caber melhor no modo local.`,
+      title: newPhotoItems.length > 0 ? "Mídias adicionadas!" : "Nenhuma mídia adicionada",
+      description: feedback.length > 0 ? feedback.join(" ") : "Imagens foram comprimidas; vídeos foram mantidos no formato original.",
       variant: newPhotoItems.length > 0 ? "default" : "destructive"
     });
   };
@@ -500,17 +515,12 @@ export default function AdminEditModeloPage() {
 
     const feedback: string[] = [];
     const acceptedFiles = files.filter((file) => {
-      if (file.type.startsWith('video/')) {
-        feedback.push(`"${file.name}" foi bloqueado: videos nao sao suportados no modo local.`);
+      if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
+        feedback.push(`"${file.name}" foi ignorado porque nao e uma imagem nem um video.`);
         return false;
       }
 
-      if (!file.type.startsWith('image/')) {
-        feedback.push(`"${file.name}" foi ignorado porque nao e uma imagem.`);
-        return false;
-      }
-
-      if (file.size > MAX_STORY_IMAGE_FILE_SIZE_BYTES) {
+      if (file.type.startsWith('image/') && file.size > MAX_STORY_IMAGE_FILE_SIZE_BYTES) {
         feedback.push(`"${file.name}" excede ${formatFileSize(MAX_STORY_IMAGE_FILE_SIZE_BYTES)}.`);
         return false;
       }
@@ -527,11 +537,18 @@ export default function AdminEditModeloPage() {
 
     for (const file of validFiles) {
       try {
-        const mediaUrl = await compressImage(file, 720, 1280, 0.7, STORY_TARGET_BYTES);
+        const mediaUrl = file.type.startsWith('video/')
+          ? await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.onerror = () => reject(reader.error);
+              reader.readAsDataURL(file);
+            })
+          : await compressImage(file, 720, 1280, 0.7, STORY_TARGET_BYTES);
         newStories.push({
           id: Date.now().toString() + Math.random().toString().slice(2),
           mediaUrl,
-          mediaType: 'image',
+          mediaType: file.type.startsWith('video/') ? 'video' : 'image',
           duration: 5,
           createdAt: new Date().toISOString()
         });
@@ -547,7 +564,7 @@ export default function AdminEditModeloPage() {
 
     toast({
       title: newStories.length > 0 ? "Stories adicionados!" : "Nenhum story adicionado",
-      description: feedback.length > 0 ? feedback.join(" ") : `So imagens sao permitidas no modo local.`,
+      description: feedback.length > 0 ? feedback.join(" ") : "Imagens sao comprimidas antes da importacao; videos sao mantidos no formato original.",
       variant: newStories.length > 0 ? "default" : "destructive"
     });
   };
@@ -765,24 +782,31 @@ export default function AdminEditModeloPage() {
 
           <TabsContent value="media" className="space-y-6">
             <Card className="bg-dark-900 border-gray-800">
-              <CardHeader><CardTitle className="text-white">Galeria de Fotos (Drag & Drop)</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-white">Galeria de Fotos e Vídeos (Drag & Drop)</CardTitle></CardHeader>
               <CardContent className="space-y-6">
                 <div className={`border-2 border-dashed rounded-lg p-8 text-center transition-all cursor-pointer ${isDragging ? 'border-primary bg-primary/10' : 'border-gray-700 hover:bg-dark-800'}`} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop} onClick={() => fileInputRef.current?.click()}>
-                  <Input type="file" multiple accept="image/*" onChange={handlePhotoUpload} className="hidden" ref={fileInputRef} />
+                  <Input type="file" multiple accept="image/*,video/*" onChange={handlePhotoUpload} className="hidden" ref={fileInputRef} />
                   <div className="flex flex-col items-center gap-3">
-                    <Upload className="h-8 w-8 text-gray-500" />
-                    <p className="text-white font-medium">Arraste fotos ou clique para enviar</p>
-                    <p className="text-xs text-gray-500">Ate {MAX_PHOTOS} fotos. Cada arquivo pode ter no maximo {formatFileSize(MAX_PHOTO_FILE_SIZE_BYTES)} e sera comprimido no navegador antes de importar.</p>
+                    <Film className="h-8 w-8 text-gray-500" />
+                    <p className="text-white font-medium">Arraste mídias ou clique para enviar</p>
+                    <p className="text-xs text-gray-500">Ate {MAX_PHOTOS} mídias. Imagens aceitam ate {formatFileSize(MAX_PHOTO_FILE_SIZE_BYTES)}; videos aceitam ate {formatFileSize(MAX_GALLERY_VIDEO_FILE_SIZE_BYTES)}.</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                   {currentPhotoItems.map((photo, index) => (
                     <div key={photo.id} draggable onDragStart={() => setDraggedPhotoId(photo.id)} onDragOver={(e) => e.preventDefault()} onDrop={() => { if (!draggedPhotoId) return; const fromIndex = currentPhotoItems.findIndex(i => i.id === draggedPhotoId); movePhoto(fromIndex, index); setDraggedPhotoId(null); }} 
-                      onClick={() => setPreviewMedia({ url: photo.url, type: 'image' })}
+                      onClick={() => setPreviewMedia({ url: photo.url, type: photo.mediaType === 'video' ? 'video' : 'image' })}
                       className="relative aspect-[3/4] rounded-lg overflow-hidden border border-gray-700 group cursor-zoom-in"
                     >
-                      <Image src={photo.url} alt="Foto" fill className={cn("object-cover", photo.isBlurred && "blur-md")} />
+                      <MediaFill
+                        src={photo.url}
+                        alt="Mídia"
+                        mediaType={photo.mediaType}
+                        className={cn(photo.isBlurred && "blur-md")}
+                        autoPlay={photo.mediaType === "video"}
+                        loop={photo.mediaType === "video"}
+                      />
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
                         <Eye className="h-8 w-8 text-white/70" />
                       </div>
@@ -793,6 +817,9 @@ export default function AdminEditModeloPage() {
                       <div className="absolute top-2 right-2 flex flex-col gap-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
                          <Button size="icon" variant="destructive" className="h-7 w-7 rounded-full" onClick={(event) => { event.stopPropagation(); removePhoto(index); }}><Trash2 className="h-3.5 w-3.5" /></Button>
                          <Button size="icon" variant="secondary" className={cn("h-7 w-7 rounded-full", photo.isBlurred && "bg-amber-500")} onClick={(event) => { event.stopPropagation(); togglePhotoBlur(index); }}>{photo.isBlurred ? <Lock className="h-3.5 w-3.5" /> : <LockOpen className="h-3.5 w-3.5" />}</Button>
+                      </div>
+                      <div className="absolute bottom-2 left-2 z-20 rounded bg-black/70 px-2 py-1 text-[10px] font-semibold text-white">
+                        {photo.mediaType === "video" ? "VÍDEO" : "FOTO"}
                       </div>
                        <Button size="sm" variant="secondary" className="absolute bottom-2 left-2 right-2 bg-black/60 text-white opacity-0 group-hover:opacity-100" onClick={(event) => { event.stopPropagation(); setFeaturedPhoto(index); }}>Usar como Capa</Button>
                     </div>
@@ -805,16 +832,19 @@ export default function AdminEditModeloPage() {
               <CardHeader><CardTitle className="text-white">Stories (24h)</CardTitle></CardHeader>
               <CardContent className="space-y-6">
                  <div className="border-2 border-dashed border-gray-700 rounded-lg p-6 text-center hover:bg-dark-800 cursor-pointer" onClick={() => storyInputRef.current?.click()}>
-                   <Input type="file" multiple accept="image/*" onChange={handleStoryUpload} className="hidden" ref={storyInputRef} />
+                   <Input type="file" multiple accept="image/*,video/*" onChange={handleStoryUpload} className="hidden" ref={storyInputRef} />
                    <div className="flex flex-col items-center gap-2">
                      <PlayCircle className="h-6 w-6 text-primary" />
                      <span className="text-white text-sm">Adicionar Stories</span>
-                     <span className="text-xs text-gray-500">No modo local, apenas imagens sao aceitas. Ate {MAX_STORIES} stories, com compressao nativa antes da importacao.</span>
+                     <span className="text-xs text-gray-500">Aceita fotos e videos. Ate {MAX_STORIES} stories; imagens recebem compressao nativa antes da importacao.</span>
                    </div>
                  </div>
                  <div className={cn("rounded-lg border px-3 py-2 text-sm", isStorageNearLimit ? "border-red-500/60 bg-red-500/10 text-red-100" : "border-amber-500/40 bg-amber-500/10 text-amber-100")}>
                    Armazenamento estimado do perfil: {formatFileSize(estimatedStorageBytes)}. O modo local costuma falhar perto de {formatFileSize(PROFILE_STORAGE_SOFT_LIMIT_BYTES)}.
                  </div>
+                 <p className="text-xs text-gray-500">
+                   Arraste os stories para reorganizar a sequência de exibição.
+                 </p>
                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                    {profile.stories?.map((story, index) => (
                      <div key={story.id} draggable onDragStart={() => setDraggedStoryId(story.id)} onDragOver={(e) => e.preventDefault()} onDrop={() => { if (!draggedStoryId) return; const fromIndex = profile.stories?.findIndex(s => s.id === draggedStoryId); if (fromIndex !== undefined) moveStory(fromIndex, index); setDraggedStoryId(null); }} 
@@ -824,6 +854,9 @@ export default function AdminEditModeloPage() {
                         {story.mediaType === 'image' ? <Image src={story.mediaUrl} alt="Story" fill className={cn("object-cover", story.isBlurred && "blur-sm")} /> : <video src={story.mediaUrl} className={cn("w-full h-full object-cover", story.isBlurred && "blur-sm")} />}
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
                           <Eye className="h-8 w-8 text-white/70" />
+                        </div>
+                        <div className="absolute top-1 left-1 z-20 rounded bg-black/60 p-1 text-white">
+                          <GripVertical className="h-3 w-3" />
                         </div>
                         <div className="absolute top-1 right-1 flex flex-col gap-1 z-20 opacity-0 group-hover:opacity-100">
                           <Button size="icon" variant="destructive" className="h-6 w-6 rounded-full" onClick={(event) => { event.stopPropagation(); removeStory(story.id); }}><X className="h-3 w-3" /></Button>

@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Star, MapPin, Phone, MessageCircle, Gift, ShieldCheck, X, Upload, Trash2, GripVertical, Lock, LockOpen, PlayCircle, ImageIcon, LoaderCircle, CheckCircle2, Eye } from "lucide-react";
+import { ArrowLeft, Star, MapPin, Phone, MessageCircle, Gift, ShieldCheck, X, Upload, Trash2, GripVertical, Lock, LockOpen, PlayCircle, ImageIcon, LoaderCircle, CheckCircle2, Eye, Calendar as CalendarIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { createPublicProfileId, estimateModelProfileStorageSize, localGetUser, getModelProfile, getUsers, saveModelProfile, getProfilePhotoItems, subscribeToModelProfileChanges, type ModelPhoto, type ModelProfile as ModelProfileType, type Story } from "@/lib/local-auth";
@@ -18,6 +18,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { MediaFill } from "@/components/ui/media-fill";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import {
   isRemoteMediaEnabled,
   syncRemoteProfileMedia,
@@ -31,6 +36,7 @@ const SERVICES_LIST = ["Acompanhante", "Massagem", "Jantar", "Eventos", "Viagens
 const MAX_PHOTOS = 12;
 const MAX_STORIES = 10;
 const MAX_PHOTO_FILE_SIZE_BYTES = 15 * 1024 * 1024;
+const MAX_GALLERY_VIDEO_FILE_SIZE_BYTES = 25 * 1024 * 1024;
 const MAX_STORY_IMAGE_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 const PHOTO_TARGET_BYTES = 260 * 1024;
 const STORY_TARGET_BYTES = 180 * 1024;
@@ -52,6 +58,7 @@ export function ModelProfile({ profileId }: { profileId: string }) {
   const [canEdit, setCanEdit] = useState(false);
   const [hasContentAccess, setHasContentAccess] = useState(false);
   const [previewMedia, setPreviewMedia] = useState<{ url: string, type: 'image' | 'video' } | null>(null);
+  const [date, setDate] = useState<Date | undefined>(undefined);
   
   const [isDragging, setIsDragging] = useState(false);
   const [draggedPhotoId, setDraggedPhotoId] = useState<string | null>(null);
@@ -258,8 +265,8 @@ export function ModelProfile({ profileId }: { profileId: string }) {
     const remainingSlots = MAX_PHOTOS - currentPhotoItems.length;
     if (remainingSlots <= 0) {
       toast({
-        title: "Limite de fotos atingido",
-        description: `Remova alguma foto antes de adicionar mais. Limite atual: ${MAX_PHOTOS}.`,
+        title: "Limite de galeria atingido",
+        description: `Remova alguma mídia antes de adicionar mais. Limite atual: ${MAX_PHOTOS}.`,
         variant: "destructive",
       });
       return;
@@ -267,13 +274,18 @@ export function ModelProfile({ profileId }: { profileId: string }) {
 
     const feedback: string[] = [];
     const acceptedFiles = files.filter((file) => {
-      if (!file.type.startsWith("image/")) {
-        feedback.push(`"${file.name}" foi ignorado porque nao e uma imagem.`);
+      if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
+        feedback.push(`"${file.name}" foi ignorado porque nao e uma imagem nem um video.`);
         return false;
       }
 
-      if (file.size > MAX_PHOTO_FILE_SIZE_BYTES) {
+      if (file.type.startsWith("image/") && file.size > MAX_PHOTO_FILE_SIZE_BYTES) {
         feedback.push(`"${file.name}" excede ${formatFileSize(MAX_PHOTO_FILE_SIZE_BYTES)}.`);
+        return false;
+      }
+
+      if (file.type.startsWith("video/") && file.size > MAX_GALLERY_VIDEO_FILE_SIZE_BYTES) {
+        feedback.push(`"${file.name}" excede ${formatFileSize(MAX_GALLERY_VIDEO_FILE_SIZE_BYTES)} para video na galeria.`);
         return false;
       }
 
@@ -282,15 +294,28 @@ export function ModelProfile({ profileId }: { profileId: string }) {
     const validFiles = acceptedFiles.slice(0, remainingSlots);
 
     if (acceptedFiles.length > validFiles.length) {
-      feedback.push(`A galeria local aceita no maximo ${MAX_PHOTOS} fotos.`);
+      feedback.push(`A galeria local aceita no maximo ${MAX_PHOTOS} midias.`);
     }
 
     for (const file of validFiles) {
       try {
-        const compressed = await compressImage(file, 960, 1280, 0.72, PHOTO_TARGET_BYTES);
+        const mediaUrl = file.type.startsWith("video/")
+          ? await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.onerror = () => reject(reader.error);
+              reader.readAsDataURL(file);
+            })
+          : await compressImage(file, 960, 1280, 0.72, PHOTO_TARGET_BYTES);
         setModel(prev => {
           if (!prev) return null;
-          const nextItems = [...getProfilePhotoItems(prev), { id: crypto.randomUUID(), url: compressed, isBlurred: false }];
+          const nextItem: ModelPhoto = {
+            id: crypto.randomUUID(),
+            url: mediaUrl,
+            isBlurred: false,
+            mediaType: file.type.startsWith("video/") ? "video" : "image",
+          };
+          const nextItems = [...getProfilePhotoItems(prev), nextItem];
           return { ...prev, photoItems: nextItems, photos: nextItems.map(i => i.url) };
         });
       } catch (e) {
@@ -299,8 +324,8 @@ export function ModelProfile({ profileId }: { profileId: string }) {
       }
     }
     toast({
-      title: validFiles.length > 0 ? "Fotos adicionadas!" : "Nenhuma foto adicionada",
-      description: feedback.length > 0 ? feedback.join(" ") : "As imagens foram comprimidas antes de entrar no perfil.",
+      title: validFiles.length > 0 ? "Mídias adicionadas!" : "Nenhuma mídia adicionada",
+      description: feedback.length > 0 ? feedback.join(" ") : "Imagens foram comprimidas antes de entrar no perfil; vídeos foram mantidos no formato original.",
       variant: validFiles.length > 0 ? "default" : "destructive",
     });
   };
@@ -352,17 +377,12 @@ export function ModelProfile({ profileId }: { profileId: string }) {
 
     const feedback: string[] = [];
     const acceptedFiles = Array.from(e.target.files).filter((file) => {
-      if (file.type.startsWith("video/")) {
-        feedback.push(`"${file.name}" foi bloqueado: videos nao sao suportados no modo local.`);
+      if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
+        feedback.push(`"${file.name}" foi ignorado porque nao e uma imagem nem um video.`);
         return false;
       }
 
-      if (!file.type.startsWith("image/")) {
-        feedback.push(`"${file.name}" foi ignorado porque nao e uma imagem.`);
-        return false;
-      }
-
-      if (file.size > MAX_STORY_IMAGE_FILE_SIZE_BYTES) {
+      if (file.type.startsWith("image/") && file.size > MAX_STORY_IMAGE_FILE_SIZE_BYTES) {
         feedback.push(`"${file.name}" excede ${formatFileSize(MAX_STORY_IMAGE_FILE_SIZE_BYTES)}.`);
         return false;
       }
@@ -377,8 +397,20 @@ export function ModelProfile({ profileId }: { profileId: string }) {
 
     for (const file of validFiles) {
       try {
-        const url = await compressImage(file, 720, 1280, 0.7, STORY_TARGET_BYTES);
-        const newStory: Story = { id: crypto.randomUUID(), mediaUrl: url, mediaType: "image", createdAt: new Date().toISOString() };
+        const mediaUrl = file.type.startsWith("video/")
+          ? await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.onerror = () => reject(reader.error);
+              reader.readAsDataURL(file);
+            })
+          : await compressImage(file, 720, 1280, 0.7, STORY_TARGET_BYTES);
+        const newStory: Story = {
+          id: crypto.randomUUID(),
+          mediaUrl,
+          mediaType: file.type.startsWith("video/") ? "video" : "image",
+          createdAt: new Date().toISOString(),
+        };
         setModel(prev => prev ? ({ ...prev, stories: [...(prev.stories || []), newStory] }) : null);
       } catch (err) {
         console.error(err);
@@ -387,7 +419,7 @@ export function ModelProfile({ profileId }: { profileId: string }) {
     }
     toast({
       title: validFiles.length > 0 ? "Stories adicionados!" : "Nenhum story adicionado",
-      description: feedback.length > 0 ? feedback.join(" ") : "Os stories foram comprimidos antes de entrar no perfil.",
+      description: feedback.length > 0 ? feedback.join(" ") : "Imagens sao comprimidas antes de entrar no perfil; videos sao mantidos no formato original.",
       variant: validFiles.length > 0 ? "default" : "destructive",
     });
     e.target.value = "";
@@ -417,14 +449,15 @@ export function ModelProfile({ profileId }: { profileId: string }) {
               <CardContent className="p-0">
                 <div className="aspect-[4/5] w-full relative group">
                   {mainImage && (
-                    <Image 
-                      src={mainImage} 
-                      alt={model?.artisticName || ""} 
-                      fill 
+                    <MediaFill
+                      src={mainImage}
+                      alt={model?.artisticName || ""}
+                      mediaType={currentPhotoItems.find((p) => p.url === mainImage)?.mediaType}
                       className={cn(
-                        "object-cover",
                         currentPhotoItems.find(p => p.url === mainImage)?.isBlurred && !hasContentAccess && "blur-2xl"
-                      )} 
+                      )}
+                      autoPlay={currentPhotoItems.find((p) => p.url === mainImage)?.mediaType === "video"}
+                      loop={currentPhotoItems.find((p) => p.url === mainImage)?.mediaType === "video"}
                     />
                   )}
                   {currentPhotoItems.find(p => p.url === mainImage)?.isBlurred && !hasContentAccess && (
@@ -445,9 +478,9 @@ export function ModelProfile({ profileId }: { profileId: string }) {
                   <div className="flex gap-2">
                     <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}>
                       <Upload className="h-4 w-4 mr-2" />
-                      Adicionar Fotos
+                      Adicionar Mídias
                     </Button>
-                    <input type="file" multiple accept="image/*" className="hidden" ref={fileInputRef} onChange={handlePhotoUpload} />
+                    <input type="file" multiple accept="image/*,video/*" className="hidden" ref={fileInputRef} onChange={handlePhotoUpload} />
                   </div>
                 )}
               </div>
@@ -471,23 +504,25 @@ export function ModelProfile({ profileId }: { profileId: string }) {
                     )}
                     onClick={() => {
                       if (editing) {
-                        setPreviewMedia({ url: photo.url, type: 'image' });
+                        setPreviewMedia({ url: photo.url, type: photo.mediaType === "video" ? "video" : "image" });
                       } else {
                         setMainImage(photo.url);
                       }
                     }}
                   >
-                    <Image 
-                      src={photo.url} 
-                      alt={`Foto ${index + 1}`} 
-                      fill 
-                      className={cn("object-cover", photo.isBlurred && !hasContentAccess && "blur-md")}
+                    <MediaFill
+                      src={photo.url}
+                      alt={`Mídia ${index + 1}`}
+                      mediaType={photo.mediaType}
+                      className={cn(photo.isBlurred && !hasContentAccess && "blur-md")}
+                      autoPlay={photo.mediaType === "video"}
+                      loop={photo.mediaType === "video"}
                     />
                     
                     {editing && (
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
                         <div className="flex gap-1">
-                          <Button size="icon" variant="ghost" className="h-7 w-7 bg-black/50 hover:bg-black/70 text-white" onClick={(e) => { e.stopPropagation(); setPreviewMedia({ url: photo.url, type: 'image' }); }}>
+                          <Button size="icon" variant="ghost" className="h-7 w-7 bg-black/50 hover:bg-black/70 text-white" onClick={(e) => { e.stopPropagation(); setPreviewMedia({ url: photo.url, type: photo.mediaType === "video" ? "video" : "image" }); }}>
                             <Eye className="h-3.5 w-3.5" />
                           </Button>
                           <Button size="icon" variant="destructive" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); removePhoto(index); }}>
@@ -501,6 +536,9 @@ export function ModelProfile({ profileId }: { profileId: string }) {
                           >
                             {photo.isBlurred ? <Lock className="h-3.5 w-3.5" /> : <LockOpen className="h-3.5 w-3.5" />}
                           </Button>
+                        </div>
+                        <div className="rounded bg-black/70 px-2 py-1 text-[10px] font-semibold text-white">
+                          {photo.mediaType === "video" ? "VÍDEO" : "FOTO"}
                         </div>
                         <Button size="sm" variant="secondary" className="text-[10px] h-6 px-2" onClick={(e) => { e.stopPropagation(); setFeaturedPhoto(index); }}>
                           Capa
@@ -646,11 +684,37 @@ export function ModelProfile({ profileId }: { profileId: string }) {
               <div className="space-y-3">
                 {!editing ? (
                   <>
-                    <Button size="lg" className="w-full bg-green-600 hover:bg-green-700 text-lg">
+                    <Button size="lg" className="w-full bg-green-600 hover:bg-green-700 text-lg font-semibold shadow-lg shadow-green-900/20">
                       <Phone className="h-5 w-5 mr-2" />
                       WhatsApp
                     </Button>
-                    <Button size="lg" variant="outline" className="w-full border-primary-500 text-primary-500 hover:bg-primary-500 hover:text-white">
+
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          size="lg"
+                          variant="outline"
+                          className={cn(
+                            "w-full border-primary-500 text-primary-500 hover:bg-primary-500 hover:text-white transition-all duration-300",
+                            date && "bg-primary-500 text-white"
+                          )}
+                        >
+                          <CalendarIcon className="h-5 w-5 mr-2" />
+                          {date ? format(date, "PPP", { locale: ptBR }) : "Agendar Encontro"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0 bg-dark-900 border-gray-800" align="center">
+                        <Calendar
+                          mode="single"
+                          selected={date}
+                          onSelect={setDate}
+                          initialFocus
+                          className="text-white"
+                        />
+                      </PopoverContent>
+                    </Popover>
+
+                    <Button size="lg" variant="ghost" className="w-full text-gray-400 hover:text-white hover:bg-dark-800">
                       <MessageCircle className="h-5 w-5 mr-2" />
                       Chat Interno
                     </Button>

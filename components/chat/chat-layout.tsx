@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { localGetUser, getModelProfile, getUsers } from "@/lib/local-auth";
-import { type Conversation, type Message } from "@/lib/local-chat";
+import { type Conversation, type Message, canSendMessage, sendMessageWithLimit } from "@/lib/local-chat";
 import { fetchConversationsService, fetchMessagesService, sendMessageService, markAsReadService } from "@/lib/chat-service";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -41,9 +41,15 @@ export default function ChatLayout({ mode = "full" }: { mode?: "full" | "floatin
   const [activeConversationId, setActiveConversationId] = useState<string | null>(initialContactId);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
+  const [messageLimitInfo, setMessageLimitInfo] = useState<{
+    canSend: boolean;
+    remaining: number;
+    limit: number;
+    isVip: boolean;
+  } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
-  
+
   // Call States
   const [isCallModalOpen, setIsCallModalOpen] = useState(false);
   const [callMode, setCallMode] = useState<"video" | "audio">("video");
@@ -151,6 +157,18 @@ export default function ChatLayout({ mode = "full" }: { mode?: "full" | "floatin
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // Atualiza info de limite quando a conversa ativa ou usuário mudam
+  useEffect(() => {
+    if (!currentUser || !activeConversationId) {
+      setMessageLimitInfo(null);
+      return;
+    }
+
+    const userId = (currentUser.id || currentUser.email).toLowerCase();
+    const limitInfo = canSendMessage(userId, activeConversationId);
+    setMessageLimitInfo(limitInfo);
+  }, [currentUser, activeConversationId]);
 
   const loadConversations = async (userId: string) => {
     try {

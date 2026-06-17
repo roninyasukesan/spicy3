@@ -4,14 +4,79 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Flame, Menu, User, X, MessageCircle } from "lucide-react"
+import {
+  ChevronDown,
+  Crown,
+  Flame,
+  Heart,
+  Image as ImageIcon,
+  LayoutDashboard,
+  Menu,
+  MessageCircle,
+  Search,
+  Settings,
+  User,
+  Users,
+  X,
+  type LucideIcon,
+} from "lucide-react"
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { LoginForm } from "@/components/login-form"
 import { type UserRole } from "@/lib/utils"
 import { localGetUser, localSignOut } from "@/lib/local-auth"
 import { getConversations } from "@/lib/local-chat"
 import { isRemoteDataEnabled } from "@/lib/profile-client"
 import { supabase } from "@/lib/supabase"
+
+type RoleNavItem = {
+  id: string
+  label: string
+  href: string
+  icon: LucideIcon
+}
+
+const ROLE_LABELS: Record<UserRole, string> = {
+  admin: "Administrador",
+  modelo: "Modelo",
+  cliente: "Cliente",
+}
+
+function getRoleNavigation(role: UserRole): RoleNavItem[] {
+  if (role === "admin") {
+    return [
+      { id: "admin-dashboard", label: "Painel admin", href: "/dashboard/admin", icon: LayoutDashboard },
+      { id: "admin-users", label: "Usuários", href: "/dashboard/admin?tab=usuarios", icon: Users },
+      { id: "admin-models", label: "Modelos", href: "/dashboard/admin?tab=modelos", icon: ImageIcon },
+      { id: "admin-system", label: "Sistema", href: "/dashboard/admin?tab=sistema", icon: Settings },
+      { id: "admin-chat", label: "Mensagens", href: "/dashboard/chat", icon: MessageCircle },
+    ]
+  }
+
+  if (role === "modelo") {
+    return [
+      { id: "model-dashboard", label: "Painel modelo", href: "/dashboard/modelo", icon: LayoutDashboard },
+      { id: "model-profile", label: "Editar perfil", href: "/dashboard/modelo?tab=profile", icon: User },
+      { id: "model-media", label: "Mídias", href: "/dashboard/modelo?tab=media", icon: ImageIcon },
+      { id: "model-chat", label: "Mensagens", href: "/dashboard/chat", icon: MessageCircle },
+    ]
+  }
+
+  return [
+    { id: "client-dashboard", label: "Área do cliente", href: "/dashboard/cliente", icon: LayoutDashboard },
+    { id: "client-search", label: "Buscar modelos", href: "/busca", icon: Search },
+    { id: "client-favorites", label: "Favoritas", href: "/dashboard/cliente", icon: Heart },
+    { id: "client-chat", label: "Mensagens", href: "/dashboard/chat", icon: MessageCircle },
+    { id: "client-vip", label: "Planos VIP", href: "/vip", icon: Crown },
+  ]
+}
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -49,17 +114,6 @@ export function Header() {
       bc.close()
     }
   }, [])
-
-  const goToDashboard = () => {
-    if (!role) return
-    if (role === "admin") {
-      router.push("/dashboard/admin")
-    } else if (role === "modelo") {
-      router.push("/dashboard/modelo")
-    } else {
-      router.push("/dashboard/cliente")
-    }
-  }
 
   const handleLogout = async () => {
     localSignOut()
@@ -109,10 +163,39 @@ export function Header() {
                     </span>
                   )}
                 </Button>
-                <Button variant="ghost" size="sm" onClick={goToDashboard}>
-                  <User className="h-4 w-4 mr-2" />
-                  Minha área
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <User className="h-4 w-4 mr-2" />
+                      Minha área
+                      <ChevronDown className="h-4 w-4 ml-1" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    className="w-64 border-gray-800 bg-dark-900 text-gray-200"
+                  >
+                    <DropdownMenuLabel className="text-gray-400">
+                      Área {ROLE_LABELS[role]}
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator className="bg-gray-800" />
+                    {getRoleNavigation(role).map((item) => {
+                      const Icon = item.icon
+                      return (
+                        <DropdownMenuItem
+                          key={item.id}
+                          asChild
+                          className="cursor-pointer focus:bg-dark-800 focus:text-white"
+                        >
+                          <Link href={item.href}>
+                            <Icon className="h-4 w-4" />
+                            <span>{item.label}</span>
+                          </Link>
+                        </DropdownMenuItem>
+                      )
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <Button variant="outline" size="sm" onClick={handleLogout}>
                   Sair
                 </Button>
@@ -165,10 +248,25 @@ export function Header() {
               <div className="flex flex-col space-y-2 pt-4 border-t border-gray-800">
                 {role ? (
                   <>
-                    <Button variant="ghost" size="sm" onClick={goToDashboard}>
-                      <User className="h-4 w-4 mr-2" />
-                      Minha área
-                    </Button>
+                    <div className="space-y-1">
+                      <p className="px-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        Área {ROLE_LABELS[role]}
+                      </p>
+                      {getRoleNavigation(role).map((item) => {
+                        const Icon = item.icon
+                        return (
+                          <Link
+                            key={item.id}
+                            href={item.href}
+                            onClick={() => setIsMenuOpen(false)}
+                            className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-gray-300 transition-colors hover:bg-dark-900 hover:text-white"
+                          >
+                            <Icon className="h-4 w-4" />
+                            {item.label}
+                          </Link>
+                        )
+                      })}
+                    </div>
                     <Button
                       variant="outline"
                       size="sm"

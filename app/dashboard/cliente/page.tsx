@@ -8,6 +8,7 @@ import { localGetUser } from "@/lib/local-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useFavorites } from "@/lib/favorites";
+import { Crown, MessageCircle, Search } from "lucide-react";
 
 export default function ClienteDashboardPage() {
   const router = useRouter();
@@ -45,10 +46,42 @@ export default function ClienteDashboardPage() {
     <div className="min-h-screen bg-dark-950">
       <Header />
       <main className="container mx-auto px-4 py-8 space-y-8">
-        <h1 className="text-3xl font-bold text-white">Dashboard Cliente</h1>
-        <p className="text-gray-400">
-          Acompanhe suas curtidas, modelos favoritas e assinaturas.
-        </p>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-white">Dashboard Cliente</h1>
+            <p className="text-gray-400">
+              Acompanhe suas curtidas, modelos favoritas e assinaturas.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.push("/busca")}
+              className="border-gray-700 text-gray-300"
+            >
+              <Search className="mr-2 h-4 w-4" />
+              Buscar modelos
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.push("/dashboard/chat")}
+              className="border-gray-700 text-gray-300"
+            >
+              <MessageCircle className="mr-2 h-4 w-4" />
+              Mensagens
+            </Button>
+            <Button
+              type="button"
+              onClick={() => router.push("/vip")}
+              className="bg-primary text-white hover:bg-primary/90"
+            >
+              <Crown className="mr-2 h-4 w-4" />
+              Planos VIP
+            </Button>
+          </div>
+        </div>
 
         <div className="grid gap-6 md:grid-cols-3">
           <Card className="bg-dark-900 border-gray-800">
@@ -77,7 +110,11 @@ export default function ClienteDashboardPage() {
             </CardHeader>
             <CardContent className="space-y-2 text-gray-300">
               <p>Planos ativos e histórico de assinaturas</p>
-              <Button className="mt-2 bg-primary hover:bg-primary/90 text-white">
+              <Button
+                type="button"
+                onClick={() => router.push("/vip")}
+                className="mt-2 bg-primary hover:bg-primary/90 text-white"
+              >
                 Gerenciar assinaturas
               </Button>
             </CardContent>

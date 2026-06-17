@@ -3,8 +3,7 @@
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Star, MapPin, Phone, MessageCircle, ShieldCheck, Flame, Heart, X, Video, Lock, ChevronLeft, ChevronRight, PlayCircle } from "lucide-react";
-import Image from "next/image";
+import { Star, MapPin, Phone, MessageCircle, ShieldCheck, Flame, Heart, X, Video, Lock, ChevronLeft, ChevronRight, PlayCircle, Calendar } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useFavorites } from "@/lib/favorites";
 import { cn } from "@/lib/utils";
@@ -16,6 +15,7 @@ import { StoryViewer } from "./story-viewer";
 import { Story, type ModelPhoto } from "@/lib/local-auth";
 import { getGalleryItemsFromModel } from "@/lib/model-mappers";
 import { toast } from "@/components/ui/use-toast";
+import { MediaFill } from "@/components/ui/media-fill";
 
 // Define the interface for the model prop
 export interface Model {
@@ -226,13 +226,14 @@ export function ModelDetailsModal({ model, isOpen, onClose }: ModelDetailsModalP
                 openGalleryLightbox(currentMainImage)
               }}
             >
-              <Image 
-                src={currentMainImage} 
-                alt={model.name} 
-                fill
+              <MediaFill
+                src={currentMainImage}
+                alt={model.name}
+                mediaType={currentMainItem?.mediaType}
                 sizes="(max-width: 768px) 100vw, 50vw"
-                style={{ objectFit: "cover" }} 
                 className={cn(shouldBlurCurrentMain && "blur-md")}
+                autoPlay={currentMainItem?.mediaType === "video"}
+                loop={currentMainItem?.mediaType === "video"}
               />
               {shouldBlurCurrentMain && (
                 <div className="absolute inset-0 bg-black/50 flex items-center justify-center text-center">
@@ -257,7 +258,15 @@ export function ModelDetailsModal({ model, isOpen, onClose }: ModelDetailsModalP
                     setMainImage(item.url)
                   }}
                 >
-                  <Image src={item.url} alt={`${model.name} ${index + 1}`} fill sizes="100px" style={{ objectFit: "cover" }} className={cn("rounded-sm", item.isBlurred && !hasContentAccess && "blur-md")} />
+                  <MediaFill
+                    src={item.url}
+                    alt={`${model.name} ${index + 1}`}
+                    mediaType={item.mediaType}
+                    sizes="100px"
+                    className={cn("rounded-sm", item.isBlurred && !hasContentAccess && "blur-md")}
+                    autoPlay={item.mediaType === "video"}
+                    loop={item.mediaType === "video"}
+                  />
                   {item.isBlurred && !hasContentAccess && (
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                       <Lock className="h-4 w-4 text-white" />
@@ -320,7 +329,14 @@ export function ModelDetailsModal({ model, isOpen, onClose }: ModelDetailsModalP
                   >
                     <div className="relative w-12 h-12 rounded-full p-0.5 bg-gradient-to-br from-primary-500 to-pink-500">
                       <div className="w-full h-full rounded-full overflow-hidden border-2 border-dark-900">
-                        <Image src={model.imageUrl} alt={model.name} fill className="object-cover" />
+                        <MediaFill
+                          src={galleryItems[0]?.url || model.imageUrl}
+                          alt={model.name}
+                          mediaType={galleryItems[0]?.mediaType}
+                          className="object-cover"
+                          autoPlay={galleryItems[0]?.mediaType === "video"}
+                          loop={galleryItems[0]?.mediaType === "video"}
+                        />
                       </div>
                     </div>
                     <div className="flex-1">
@@ -454,6 +470,13 @@ export function ModelDetailsModal({ model, isOpen, onClose }: ModelDetailsModalP
                 WhatsApp
               </Button>
               <div className="grid grid-cols-2 gap-3">
+                <Button
+                  size="lg"
+                  className="col-span-2 bg-primary-600 hover:bg-primary-700 text-white"
+                >
+                  <Calendar className="h-5 w-5 mr-2" />
+                  Agendar Encontro
+                </Button>
                 <Button 
                   size="lg" 
                   variant="outline" 
@@ -512,13 +535,15 @@ export function ModelDetailsModal({ model, isOpen, onClose }: ModelDetailsModalP
               className="relative h-[78vh] w-[min(92vw,540px)]"
               onClick={(e) => e.stopPropagation()}
             >
-              <Image
+              <MediaFill
                 src={galleryItems[lightboxIndex]?.url || currentMainImage}
                 alt={`${model.name} slide ${lightboxIndex + 1}`}
-                fill
+                mediaType={galleryItems[lightboxIndex]?.mediaType}
                 sizes="92vw"
-                className="object-contain"
+                fit="contain"
                 priority
+                autoPlay={galleryItems[lightboxIndex]?.mediaType === "video"}
+                controls={galleryItems[lightboxIndex]?.mediaType === "video"}
               />
             </div>
 
@@ -551,12 +576,13 @@ export function ModelDetailsModal({ model, isOpen, onClose }: ModelDetailsModalP
                       index === lightboxIndex ? "border-primary-500" : "border-transparent"
                     )}
                   >
-                    <Image
+                    <MediaFill
                       src={item.url}
                       alt={`${model.name} miniatura ${index + 1}`}
-                      fill
+                      mediaType={item.mediaType}
                       sizes="48px"
-                      className="object-cover"
+                      autoPlay={item.mediaType === "video"}
+                      loop={item.mediaType === "video"}
                     />
                   </button>
                 ))}

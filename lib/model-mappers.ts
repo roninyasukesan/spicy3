@@ -47,6 +47,7 @@ export function getGalleryItemsFromModel(model: Pick<Model, "gallery" | "gallery
       id: `gallery-${index}-${url.slice(0, 12)}`,
       url,
       isBlurred: false,
+      mediaType: "image",
     }))
   }
 
@@ -55,6 +56,7 @@ export function getGalleryItemsFromModel(model: Pick<Model, "gallery" | "gallery
       id: "cover-fallback",
       url: model.imageUrl,
       isBlurred: false,
+      mediaType: "image",
     },
   ]
 }
