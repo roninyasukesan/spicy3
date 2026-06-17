@@ -1,13 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { X, ChevronLeft, ChevronRight, Lock } from "lucide-react";
 import Image from "next/image";
 import { cn, getProfileSearchPath } from "@/lib/utils";
 import { Story } from "@/lib/local-auth";
-import { Progress } from "@/components/ui/progress";
 import { useRouter } from "next/navigation";
 
 interface StoryViewerProps {
@@ -38,6 +37,9 @@ export function StoryViewer({
   const [currentIndex, setCurrentIndex] = useState(initialStoryIndex);
   const [progress, setProgress] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [isMediaReady, setIsMediaReady] = useState(false);
+  const [videoDurationMs, setVideoDurationMs] = useState<number | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const router = useRouter();
 
   const currentStory = stories[currentIndex];
@@ -51,6 +53,8 @@ export function StoryViewer({
 
   const duration = (currentStory?.duration || 5) * 1000; // ms
   const intervalTime = 50; // Update progress every 50ms
+  const isVideoStory = currentStory?.mediaType === "video";
+  const effectiveDuration = isVideoStory ? videoDurationMs || duration : duration;
 
   const handleNext = useCallback(() => {
     if (currentIndex < stories.length - 1) {
@@ -78,16 +82,16 @@ export function StoryViewer({
     }
   }, [currentIndex, onPrevProfile]);
 
-  // Auto-advance
+  // Auto-advance for image stories starts only after the current media is ready.
   useEffect(() => {
-    if (!isOpen || isPaused) return;
+    if (!isOpen || isPaused || !isMediaReady || isVideoStory) return;
 
     const timer = setInterval(() => {
-      setProgress(prev => Math.min(prev + (intervalTime / duration) * 100, 100));
+      setProgress(prev => Math.min(prev + (intervalTime / effectiveDuration) * 100, 100));
     }, intervalTime);
 
     return () => clearInterval(timer);
-  }, [isOpen, isPaused, duration, handleNext]);
+  }, [isOpen, isPaused, isMediaReady, isVideoStory, effectiveDuration]);
 
   useEffect(() => {
     if (!isOpen || isPaused) return;
@@ -101,6 +105,8 @@ export function StoryViewer({
   useEffect(() => {
     if (isOpen) {
       setProgress(0);
+      setIsMediaReady(false);
+      setVideoDurationMs(null);
     }
   }, [currentIndex, isOpen]);
 
@@ -110,6 +116,39 @@ export function StoryViewer({
       setProgress(0);
     }
   }, [currentIndex, stories.length]);
+
+  // Preload the next story so the transition begins immediately.
+  useEffect(() => {
+    if (!isOpen || currentIndex >= stories.length - 1) return;
+
+    const nextStory = stories[currentIndex + 1];
+    if (!nextStory) return;
+
+    if (nextStory.mediaType === "video") {
+      const preloadVideo = document.createElement("video");
+      preloadVideo.preload = "auto";
+      preloadVideo.muted = true;
+      preloadVideo.playsInline = true;
+      preloadVideo.src = nextStory.mediaUrl;
+      preloadVideo.load();
+      return;
+    }
+
+    const preloadImage = new window.Image();
+    preloadImage.src = nextStory.mediaUrl;
+  }, [currentIndex, isOpen, stories]);
+
+  // Pause/resume videos together with the viewer.
+  useEffect(() => {
+    if (!isVideoStory || !videoRef.current) return;
+
+    if (!isOpen || isPaused || !isMediaReady) {
+      videoRef.current.pause();
+      return;
+    }
+
+    void videoRef.current.play().catch(() => {});
+  }, [isMediaReady, isOpen, isPaused, isVideoStory]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -127,8 +166,6 @@ export function StoryViewer({
   }, [isOpen, handleNext, handlePrev, onClose]);
 
   if (!stories.length || !currentStory) return null;
-
-  const isVideoStory = currentStory.mediaType === "video";
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -198,16 +235,20 @@ export function StoryViewer({
           {currentStory.mediaType === 'image' ? (
             <div className="relative h-full w-full">
                <Image 
+                 key={currentStory.id}
                  src={currentStory.mediaUrl} 
                  alt={`Story ${currentIndex + 1}`} 
                  fill 
                  className={cn("object-contain", isBlurred && "blur-2xl")}
                  priority
+                 onLoad={() => setIsMediaReady(true)}
                />
             </div>
           ) : (
             <div className="flex h-full w-full items-center justify-center px-2 sm:px-4">
               <video 
+                key={currentStory.id}
+                ref={videoRef}
                 src={currentStory.mediaUrl}
                 className={cn(
                   "h-auto w-auto max-h-[calc(100dvh-7rem)] max-w-[calc(100vw-1rem)] object-contain sm:max-h-[calc(92vh-7rem)] sm:max-w-[94vw]",
@@ -217,6 +258,21 @@ export function StoryViewer({
                 muted
                 playsInline
                 loop={false}
+                preload="auto"
+                onLoadedMetadata={(event) => {
+                  const nextDurationMs = Number.isFinite(event.currentTarget.duration)
+                    ? event.currentTarget.duration * 1000
+                    : duration;
+                  setVideoDurationMs(nextDurationMs > 0 ? nextDurationMs : duration);
+                }}
+                onCanPlay={() => setIsMediaReady(true)}
+                onTimeUpdate={(event) => {
+                  const mediaDuration = event.currentTarget.duration;
+                  if (!Number.isFinite(mediaDuration) || mediaDuration <= 0) return;
+                  setProgress(
+                    Math.min((event.currentTarget.currentTime / mediaDuration) * 100, 100)
+                  );
+                }}
                 onEnded={handleNext}
               />
             </div>
